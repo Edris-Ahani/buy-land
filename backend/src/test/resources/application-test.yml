@@ -1,0 +1,13 @@
+platform:
+  auth:
+    jwt-secret: ${random.value}${random.value}
+    issuer: https://api.example.test
+    audience: buy-land-api
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:1/unused
+    username: test
+    password: test
+logging:
+  level:
+    org.springframework.boot: INFO

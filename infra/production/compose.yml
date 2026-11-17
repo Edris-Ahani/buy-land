@@ -1,0 +1,70 @@
+name: buy-land-production
+
+services:
+  postgres:
+    image: docker.io/library/postgres:18.6-alpine
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      POSTGRES_DB: "buy_land"
+      POSTGRES_USER: ${DATABASE_USERNAME:-buy_land_app}
+      POSTGRES_PASSWORD_FILE: /run/secrets/database-password
+    secrets: [database-password]
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    networks: [data]
+
+  api:
+    image: ${API_IMAGE:?Set an immutable API image digest}
+    user: "10001:10001"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    environment:
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      DATABASE_URL: jdbc:postgresql://postgres:5432/buy_land
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-buy_land_app}
+      AUTH_ISSUER: ${AUTH_ISSUER:?Set the HTTPS API origin}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-buy-land-api}
+      PLATFORM_API_DOCS_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError
+    secrets:
+      - source: database-password
+        target: spring.datasource.password
+      - source: jwt-secret
+        target: platform.auth.jwt-secret
+    ports: ["127.0.0.1:8080:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      start_period: 60s
+      interval: 15s
+      timeout: 4s
+      retries: 5
+    stop_grace_period: 35s
+    mem_limit: 768m
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [data, application]
+
+volumes:
+  postgres-data:
+
+networks:
+  data:
+    internal: true
+  application:
+
+secrets:
+  jwt-secret:
+    file: ${AUTH_JWT_SECRET_FILE:?Set the absolute JWT secret file path}
+  database-password:
+    file: ${DATABASE_PASSWORD_FILE:?Set the absolute database password file path}

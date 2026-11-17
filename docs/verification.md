@@ -1,0 +1,48 @@
+# Verification record
+
+This record covers the backend API, PostgreSQL, and self-hosted Scalar. Deployment and hosted CI outcomes must be reported separately from local checks.
+
+## Authentication baseline: November 17, 2026
+
+Before the two-service packaging cleanup, the application-owned authentication implementation passed the following checks with temporary Corretto 25.0.5 and isolated PostgreSQL containers:
+
+| Check | Observed result |
+| --- | --- |
+| Backend complete verification | 75 unit/security/architecture/contract tests and 10 real PostgreSQL integration tests passed; zero failures, errors, or skips |
+| Registration and persistence | Unicode names, phone normalization, password hashes, refresh hashes, immediate JWT use, duplicate numbers, and concurrent registration passed |
+| Refresh and logout | Rotation, committed replay revocation, concurrent exchanges, independent sessions, consumed-token logout, logout-all, disabled users, and absolute expiry passed |
+| JWT checks | Local signatures, issuer, audience, expiry, token use, scope restrictions, immediate revocation, and sanitized session-store failures passed |
+| Repository and generator | Repository policy checks, nine validator tests, eight generator tests, and four scanner-input tests passed |
+
+The temporary JDK checksum was verified before use. Existing application database credentials were preserved, a missing signing secret was generated, and temporary verification tooling was removed. No public deployment, password recovery, or phone verification is implied by these results.
+
+## Backend-only packaging cleanup: November 17, 2026
+
+Development and production Compose now define exactly `api` and `postgres`. The only application image is the API image. API tooling and Scalar browser verification live at the repository root, outside the runtime service topology. The dependency lockfile contains only API documentation and browser-test tooling.
+
+Project ownership labels identified an obsolete Docker identity database volume; it was removed while preserving `buy-land_postgres-data`. The unused project web image was also removed after confirming no container used it. The Podman machine's Windows SSH forwarding was unavailable; direct inspection through its existing WSL distribution found no project containers, images, or volumes in either the root or normal-user stores. Unrelated projects and shared runtime configuration were left intact.
+
+| Check | Observed result |
+| --- | --- |
+| Backend complete verification | 75 unit/security/architecture/contract tests and 10 isolated PostgreSQL integration tests passed; zero failures, errors, or skips |
+| API image and local stack | API image built successfully; exactly `buy-land-api-1` and `buy-land-postgres-1` remain running and healthy |
+| Runtime resources | Only the project API image and application PostgreSQL volume remain; both Podman stores have no project resources |
+| Compose configuration | Development and production define exactly `api` and `postgres`; production PostgreSQL has no published port and uses an internal network |
+| Real API smoke | Registration, login, normalized uniqueness, JWT use, refresh rotation/replay, logout, catalog, and Scalar publication passed |
+| Scalar browser suite | Four tests passed on desktop and mobile, including a real unauthenticated catalog request from the embedded client and checks for external requests or browser errors |
+| Contract and tooling | Redocly lint, the compatibility checker regression test, nine repository validator tests, eight project generator tests, and four scanner-input tests passed |
+| Repository policy and inventory | All 123 maintained text files passed; independent filesystem validation matched the reviewed template inventory |
+
+The backend suite ran natively with a checksum-verified temporary Corretto 25.0.5 JDK and isolated PostgreSQL test containers. Task-specific tooling, the temporary verification image, and disposable browser reports were removed. The application database volume and signing secret were preserved. Smoke verification created a synthetic account and revoked its sessions.
+
+At the time of packaging verification, Git-dependent `template:sync`, `template:check`, and baseline `api:compatibility` could not run because the generated project had no `.git` directory. The independent inventory validation and compatibility checker regression test passed. Production Compose was validated but not deployed; hosted CI was not run.
+
+## Initial Git repository and secret protection: November 17, 2026
+
+The repository was initialized on `main` for the requested initial local commit. Private environment files, key material, cloud credentials, database files, and local tooling are excluded. Only maintained source, configuration with environment references, and empty credential examples belong to the commit. No remote was added and no push was performed.
+
+Versioned pre-commit and pre-push hooks were activated in repository-local Git configuration. The checksum-pinned local Gitleaks scan found two deterministic test signing values; tests now generate signing material at runtime. A subsequent scan of all 127 index paths passed without findings, and staged contents were checked against actual local credential values without printing them. The real pre-commit hook rejected both a force-added private environment probe and a synthetic AWS-format credential, with redacted diagnostics; both probes were removed.
+
+After the test-key changes, all 75 backend unit/security/architecture/contract tests passed inside a disposable build container without a host or container socket mount. The previous 10 PostgreSQL integration results remain the earlier packaging baseline; they were not rerun for the Git tooling change. Seven security tooling tests, nine repository validator tests, eight generator tests, Redocly lint, and Git-based template synchronization/checks passed. The temporary verification image was removed, and the ignored checksum-verified scanner archive remains as the required local hook cache.
+
+These checks do not guarantee detection of every possible credential. Hooks must be enabled in every clone, and server-side secret scanning, push protection, and branch rules require configuration in the eventual remote repository. See [local protection](security.md#local-commit-and-push-protection).

@@ -1,0 +1,434 @@
+openapi: 3.1.0
+info:
+  title: Buy Land Catalog API
+  version: 1.0.0
+  description: |
+    Phone and password authentication with rotating refresh tokens, and a public catalog.
+
+    API paths are versioned under `/api/v1`. Responses use explicit resource DTOs;
+    collection responses use bounded, zero-based pagination. Timestamps are UTC.
+
+    Errors follow RFC 9457 (`application/problem+json`). Every API response includes
+    a server-generated `X-Request-ID`; errors repeat it as `requestId` for support.
+
+    Use Authorize to paste a short-lived bearer token. Tokens must have the configured
+    issuer, the configured API audience, and the scope required by the operation.
+    Register or log in to obtain an access token. New users receive no catalog write scope.
+servers:
+  - url: /
+    description: The same origin as this API reference
+tags:
+  - name: Authentication
+    description: Account registration, phone-based login, refresh rotation, and session revocation.
+  - name: Catalog
+    description: Public catalog reads and scoped catalog creation.
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Authentication]
+      operationId: registerUser
+      summary: Register a user and start a session
+      description: |
+        Requires a full name containing given and family names, an Iranian mobile number,
+        and a password of 8-128 characters. Local and international phone formats and
+        Persian or Arabic digits normalize to the same unique +98 username.
+        Registration does not verify ownership of the phone number or grant catalog write access.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterUser' }
+            example: { fullName: Edris Ahani, phoneNumber: '09120000001', password: ExamplePassword42! }
+      responses:
+        '201': { $ref: '#/components/responses/Registered' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '409':
+          description: This normalized phone number is already registered
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: loginUser
+      summary: Log in using a phone number and password
+      description: Creates an independent session. Incorrect credentials and disabled accounts return the same generic error.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginUser' }
+            example: { phoneNumber: '09120000001', password: ExamplePassword42! }
+      responses:
+        '200': { $ref: '#/components/responses/Authenticated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: refreshSession
+      summary: Exchange a refresh token for a new token pair
+      description: |
+        Each refresh token is single-use. Store the replacement pair atomically and serialize
+        refresh requests in the client. Reusing a consumed token revokes its entire session,
+        including all access and replacement refresh tokens. Session expiry is absolute
+        (30 days by default); refreshing does not extend it. Expired, revoked, malformed,
+        or unknown tokens return 401. Access tokens normally expire after 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshSession' }
+      responses:
+        '200': { $ref: '#/components/responses/Authenticated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logoutSession
+      summary: Revoke the session identified by a refresh token
+      description: |
+        Possession of the refresh token authorizes revocation; an access token is unnecessary.
+        Revokes both access and refresh tokens for that session. Repeated logout or an unknown,
+        well-formed token returns 204. A previously consumed token can also revoke its session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshSession' }
+      responses:
+        '204': { $ref: '#/components/responses/LoggedOut' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/auth/logout-all:
+    post:
+      tags: [Authentication]
+      operationId: logoutAllSessions
+      summary: Revoke all current sessions of the authenticated user
+      description: Requires a valid access token. Also revokes the access token used for this request.
+      responses:
+        '204': { $ref: '#/components/responses/LoggedOut' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      summary: Read the authenticated user profile
+      description: Requires an access token for an enabled account and an active, unexpired session.
+      responses:
+        '200':
+          description: The current user without credentials
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/v1/catalog:
+    get:
+      tags: [Catalog]
+      operationId: listCatalog
+      summary: List public catalog items, newest first with an identifier tie-breaker
+      description: Returns a zero-based page ordered by createdAt descending, then id descending. Reading is public.
+      security: []
+      parameters:
+        - name: page
+          in: query
+          description: Zero-based page number, up to 10000.
+          schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+          example: 0
+        - name: size
+          in: query
+          description: Maximum number of items per page, up to 50.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+          example: 12
+      responses:
+        '200':
+          description: A bounded catalog page
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogPage' }
+              examples:
+                emptyPage:
+                  summary: An empty first page
+                  value: { items: [], page: 0, size: 12, totalElements: 0, totalPages: 0 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '500': { $ref: '#/components/responses/ServerError' }
+    post:
+      tags: [Catalog]
+      operationId: createCatalogItem
+      summary: Create a public catalog item
+      description: Requires a signed token with the configured issuer, API audience, active session, and catalog:write scope. Self-registered users do not receive this scope.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCatalogItem' }
+            examples:
+              starter:
+                summary: A new catalog item with a unique slug
+                value:
+                  slug: spring-platform
+                  name: Spring Platform
+                  description: A modular platform starter
+      responses:
+        '201':
+          description: The created catalog item
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogItem' }
+              examples:
+                createdItem:
+                  summary: The persisted resource
+                  value:
+                    id: 8e756936-6419-4b0e-9c44-5b5ce3fa4627
+                    slug: spring-platform
+                    name: Spring Platform
+                    description: A modular platform starter
+                    createdAt: '2026-11-12T10:00:00Z'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/ServerError' }
+components:
+  headers:
+    NoStore:
+      description: Authentication responses must not be cached.
+      required: true
+      schema: { type: string, const: no-store }
+    RequestId:
+      description: A UUID generated by the server for this request. Client-provided identifiers are not trusted.
+      required: true
+      schema: { type: string, format: uuid }
+      example: 06a64cb2-dcf2-4f69-a3cb-34254ef2c9a1
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Paste the accessToken returned by registration, login, or refresh. Catalog writes additionally require catalog:write.
+  schemas:
+    RegisterUser:
+      type: object
+      required: [fullName, phoneNumber, password]
+      properties:
+        fullName:
+          type: string
+          minLength: 3
+          maxLength: 160
+          description: Given and family names separated by whitespace; Unicode names are supported.
+        phoneNumber: { $ref: '#/components/schemas/PhoneInput' }
+        password: { type: string, minLength: 8, maxLength: 128, writeOnly: true }
+    LoginUser:
+      type: object
+      required: [phoneNumber, password]
+      properties:
+        phoneNumber: { $ref: '#/components/schemas/PhoneInput' }
+        password: { type: string, minLength: 8, maxLength: 128, writeOnly: true }
+    PhoneInput:
+      type: string
+      minLength: 11
+      maxLength: 32
+      description: Iranian mobile number as 09xxxxxxxxx or +989xxxxxxxxx. Persian and Arabic digits are accepted.
+      example: '09120000001'
+    RefreshSession:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+          maxLength: 256
+          writeOnly: true
+          description: The opaque refreshToken from the latest token response; not an access JWT.
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [id, fullName, phoneNumber, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string, minLength: 3, maxLength: 160 }
+        phoneNumber: { type: string, pattern: '^\+989[0-9]{9}$' }
+        createdAt: { type: string, format: date-time }
+    AuthTokens:
+      type: object
+      additionalProperties: false
+      required: [accessToken, refreshToken, tokenType, expiresIn, refreshExpiresIn, user]
+      properties:
+        accessToken: { type: string, minLength: 1, description: Short-lived signed JWT. }
+        refreshToken: { type: string, pattern: '^[A-Za-z0-9_-]{43}$', description: Single-use opaque refresh token. }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, minimum: 0, description: Access token lifetime in seconds. }
+        refreshExpiresIn: { type: integer, minimum: 0, description: Remaining absolute session lifetime in seconds. }
+        user: { $ref: '#/components/schemas/AuthUser' }
+    CatalogItem:
+      type: object
+      additionalProperties: false
+      required: [id, slug, name, description, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string, minLength: 1, maxLength: 80, pattern: '^[a-z0-9]+(-[a-z0-9]+)*$' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+        createdAt: { type: string, format: date-time }
+    CreateCatalogItem:
+      type: object
+      required: [slug, name, description]
+      properties:
+        slug: { type: string, minLength: 1, maxLength: 80, pattern: '^[a-z0-9]+(-[a-z0-9]+)*$' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+    CatalogPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/CatalogItem' }
+        page: { type: integer, minimum: 0, maximum: 10000 }
+        size: { type: integer, minimum: 1, maximum: 50 }
+        totalElements: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    Problem:
+      type: object
+      additionalProperties: false
+      description: An RFC 9457 problem with sanitized details and a server-generated correlation identifier.
+      required: [type, status, title, detail, instance, requestId]
+      properties:
+        type: { type: string, format: uri-reference }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        title: { type: string }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        requestId: { type: string, format: uuid }
+        invalidFields:
+          description: Invalid request body field names, without submitted values.
+          type: array
+          uniqueItems: true
+          items: { type: string }
+      examples:
+        - type: about:blank
+          status: 400
+          title: Bad Request
+          detail: One or more fields are invalid
+          instance: /api/v1/catalog
+          requestId: 06a64cb2-dcf2-4f69-a3cb-34254ef2c9a1
+          invalidFields: [slug]
+  responses:
+    Registered:
+      description: Account created with an access JWT and refresh token
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthTokens' }
+    Authenticated:
+      description: An access JWT and a new refresh token
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthTokens' }
+    LoggedOut:
+      description: Sessions revoked; no response body
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+    BadRequest:
+      description: Invalid input or pagination
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Missing, expired, or invalid bearer token
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        WWW-Authenticate:
+          description: The required authentication scheme.
+          schema: { type: string }
+          example: Bearer
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: The token does not grant the required scope
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        WWW-Authenticate:
+          description: The bearer token does not grant the required scope.
+          schema: { type: string }
+          example: 'Bearer error="insufficient_scope"'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The slug is already in use
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotAcceptable:
+      description: The requested response media type is not supported
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: The request body must use application/json
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServerError:
+      description: An unexpected failure with sanitized details
+      headers:
+        X-Request-ID: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

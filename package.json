@@ -1,0 +1,48 @@
+{
+  "name": "buy-land",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11.21.2 <12"
+  },
+  "packageManager": "npm@11.21.2",
+  "scripts": {
+    "create:project": "node scripts/create-project.mjs",
+    "template:sync": "node scripts/template-manifest.mjs",
+    "template:check": "node scripts/template-manifest.mjs --check",
+    "template:test": "node --test scripts/create-project.test.mjs",
+    "doctor": "node scripts/platform.mjs doctor",
+    "setup": "node scripts/platform.mjs setup",
+    "infra:up": "node scripts/platform.mjs infra-up",
+    "stack:up": "node scripts/platform.mjs stack-up",
+    "stack:build": "node scripts/platform.mjs stack-build",
+    "stack:start": "node scripts/platform.mjs stack-start",
+    "stack:down": "node scripts/platform.mjs stack-down",
+    "skills:sync": "node scripts/sync-agent-references.mjs",
+    "api:lint": "redocly lint contracts/openapi.yaml",
+    "api:check": "npm run api:lint",
+    "api:compatibility": "node scripts/api-compatibility.mjs",
+    "api:compatibility:test": "node --test scripts/api-compatibility.test.mjs",
+    "verify:quick": "node scripts/verify.mjs quick",
+    "verify:full": "node scripts/verify.mjs full",
+    "repository:check": "node scripts/verify-repository.mjs",
+    "repository:test": "node --test scripts/verify-repository.test.mjs",
+    "security:npm": "npm audit --package-lock-only --ignore-scripts --include=dev --include=optional --audit-level=moderate",
+    "security:test": "node --test scripts/maven-scan-input.test.mjs scripts/secret-scan.test.mjs",
+    "security:setup": "node scripts/secret-scan.mjs install-hooks",
+    "security:staged": "node scripts/secret-scan.mjs staged",
+    "security:history": "node scripts/secret-scan.mjs history",
+    "test:api-reference": "playwright test --config playwright.api.config.ts",
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "backend:verify": "node scripts/platform.mjs backend-verify",
+    "backend:unit": "node scripts/platform.mjs backend-unit"
+  },
+  "overrides": {
+    "minimatch@>=7 <11.0.1": "11.0.1"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.77.0",
+    "@playwright/test": "1.65.0"
+  }
+}

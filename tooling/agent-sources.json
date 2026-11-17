@@ -1,0 +1,33 @@
+{
+  "sources": [
+    {
+      "name": "superpowers",
+      "repository": "obra/superpowers",
+      "revision": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "paths": [
+        "LICENSE",
+        "skills/verification-before-completion",
+        "skills/systematic-debugging"
+      ]
+    },
+    {
+      "name": "matt-pocock",
+      "repository": "mattpocock/skills",
+      "revision": "4ae2317ddb22b046e26455e4f9c9b3aaaf62212d",
+      "paths": [
+        "LICENSE",
+        "skills/engineering/codebase-design"
+      ]
+    },
+    {
+      "name": "han",
+      "repository": "testdouble/han",
+      "revision": "abba73a773528905a8f3d15956029394746e5c7f",
+      "paths": [
+        "LICENSE",
+        "han-documentation/skills/architectural-decision-record/references/template.md",
+        "han-documentation/references/yagni-rule.md"
+      ]
+    }
+  ]
+}
