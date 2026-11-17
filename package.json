@@ -42,7 +42,7 @@
     "minimatch@>=7 <11.0.1": "11.0.1"
   },
   "devDependencies": {
-    "@redocly/cli": "2.77.0",
-    "@playwright/test": "1.65.0"
+    "@redocly/cli": "2.78.0",
+    "@playwright/test": "1.65.1"
   }
 }
