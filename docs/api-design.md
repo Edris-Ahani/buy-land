@@ -25,6 +25,22 @@ In the development stack, the interactive reference is available at http://local
 
 The contract exposes the [authentication lifecycle](authentication.md), public `GET /api/v1/catalog`, and `POST /api/v1/catalog` requiring `catalog:write`. New APIs belong in their feature packages and use only shared HTTP policy from `platform/web` and `platform/security`. Health and documentation paths are not business operations and are not listed in this contract.
 
+## Browser access and CORS
+
+Browser clients on a different origin must appear in `CORS_ALLOWED_ORIGINS`, a comma-separated list of exact HTTP/HTTPS origins without trailing slashes, paths, or wildcards. An empty setting denies cross-origin browser access. Local setup includes `http://localhost:3000`, `http://localhost:5173`, and the same ports on `127.0.0.1`. Configure the server's list when the local client uses another port.
+
+For the Coolify sandbox, the API base URL is `https://sandbox-api.ozonecowork.ir`. Send JSON to registration/login/refresh, use `Authorization: Bearer <accessToken>` for protected requests, and omit cookie credentials. A browser must never receive `AUTH_JWT_SECRET` or the database password. CORS permits API preflights for GET/POST, `Authorization`, `Content-Type`, and `Accept`; it exposes `X-Request-ID` and caches preflight permission for one hour. It does not grant access to a protected operation or replace token/scope checks.
+
+```js
+const response = await fetch("https://sandbox-api.ozonecowork.ir/api/v1/auth/me", {
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: "omit",
+});
+const requestId = response.headers.get("X-Request-ID");
+```
+
+Disallowed origins, methods, or headers receive 403 from the CORS layer before application handlers and may appear only as a CORS error to browser JavaScript. Those rejections do not use the RFC 9457 application error schema. Requests without an `Origin` header, such as server-to-server calls, retain the documented authentication and authorization behavior.
+
 ## Errors
 
 OpenAPI defines errors for 400, 401, 403, 406, 409, 415, and 500. Each problem includes `type`, `status`, `title`, `detail`, `instance`, and `requestId`. The `requestId` matches the response header. Body validation failures may include `invalidFields`, containing field names only. Responses do not expose exception messages, SQL, tokens, or submitted invalid values.

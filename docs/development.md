@@ -8,6 +8,8 @@ Use Node.js 24 and npm `>=11.21.2 <12` for the API tooling. Java development and
 
 `npm run setup` creates missing private configuration and preserves existing credentials. `npm run doctor` checks the selected engine, Compose, Node, Java availability, and configuration presence. Docker is the default; set `CONTAINER_ENGINE=podman` in `.env` for Podman. It does not create machines or prove Testcontainers socket connectivity.
 
+Setup also fills missing or empty non-secret values from `.env.example` without overwriting populated settings. `npm run setup:coolify -- --issuer https://sandbox-api.ozonecowork.ir` prepares ignored `.env.coolify` for copying into Coolify; it preserves local and previously exported credentials. See [Coolify deployment](deployment.md#deploy-from-git-with-coolify). Local browser ports 3000 and 5173 are configured through `CORS_ALLOWED_ORIGINS`.
+
 For native development, run `npm run infra:up` and launch `PlatformApplication` in the IDE with the root `.env` and `local` profile. Dotenv files are not loaded automatically by Spring Boot. Stop the containerized API before binding the same host port. PostgreSQL uses host port 15432; if changing it, update the native `DATABASE_URL` as well.
 
 ## Verification layers
@@ -24,12 +26,14 @@ For native development, run `npm run infra:up` and launch `PlatformApplication` 
 | `npm run backend:unit` | Domain, application, architecture, security, and HTTP contract tests |
 | `npm run backend:verify` | All backend tests plus real PostgreSQL integration and migrations |
 | `npm run api:compatibility -- <base-ref>` | Contract compatibility against a Git baseline using pinned oasdiff |
-| `npm run test:api-reference` | Self-hosted Scalar, CSP, and public GET requests on desktop/mobile |
+| `npm run test:api-reference` | Self-hosted Scalar, CSP, public GET requests, and browser CORS on desktop/mobile |
 | `npm run test:smoke` | Real authentication API, persistence, rotation/replay, logout, and catalog reads |
 
 `verify:quick` groups repository, template, scanner-input, OpenAPI, and backend unit checks. It needs installed API tooling and JDK 25. `verify:full` uses complete backend verification and additionally runs compatibility regression/baseline checks, Scalar browser tests, and smoke tests. It requires Go 1.26 or newer, a compatible container socket, a Git baseline, Playwright, and the running backend. Missing prerequisites fail verification.
 
 The browser suite tests the documentation served by the backend; it does not add another application service. Install the pinned browser with `npm exec -- playwright install chromium`, or use `PLAYWRIGHT_CHANNEL=msedge`. Tests only target local API origins and fail on external requests, CSP violations, or JavaScript errors. Reports are under root `test-results/api-reference`.
+
+The CORS browser tests briefly serve an HTTP fixture on `127.0.0.1:3000` to verify real browser network policy without disabling security. Keep that test port free while running the suite. The fixture closes after the tests; it is not a deployable application service.
 
 The smoke test accepts `SMOKE_API_URL` for an alternate local HTTP origin and refuses redirects. It creates one synthetic user and revokes its sessions, without printing credentials or tokens. Do not point it at production.
 

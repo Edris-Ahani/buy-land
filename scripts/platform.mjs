@@ -1,9 +1,8 @@
-import { randomBytes } from "node:crypto";
-import { parseEnv } from "node:util";
 import { existsSync, readFileSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { localEnvironment, projectRoot as root } from "./lib/environment.mjs";
+import { completeEnvironment } from "./lib/setup-environment.mjs";
 
 const windows = process.platform === "win32";
 const command = process.argv[2];
@@ -38,21 +37,15 @@ function run(binary, args, options = {}) {
 
 function setup() {
   const destination = path.join(root, ".env");
-  if (!existsSync(destination)) {
-    let content = readFileSync(path.join(root, ".env.example"), "utf8");
-    for (const key of ["DATABASE_PASSWORD", "AUTH_JWT_SECRET"]) {
-      const secret = key === "AUTH_JWT_SECRET" ? randomBytes(48).toString("base64") : randomBytes(32).toString("hex");
-      content = content.replace(`${key}=`, `${key}=${secret}`);
-    }
-    writeFileSync(destination, content, { flag: "wx", mode: 0o600 });
-    console.log("Created local environment with random development credentials. Values are not printed.");
+  const exists = existsSync(destination);
+  const example = readFileSync(path.join(root, ".env.example"), "utf8");
+  const content = exists ? readFileSync(destination, "utf8") : example;
+  const updated = completeEnvironment(content, example);
+  if (!exists || updated !== content) {
+    writeFileSync(destination, updated, { flag: exists ? "w" : "wx", mode: 0o600 });
+    console.log("Completed missing local configuration; existing credentials were preserved. Values are not printed.");
   } else {
-    const content = readFileSync(destination, "utf8");
-    if (!parseEnv(content).AUTH_JWT_SECRET) {
-      const withoutEmptySecret = content.replace(/^AUTH_JWT_SECRET=.*(?:\r?\n|$)/gm, "");
-      writeFileSync(destination, `${withoutEmptySecret.trimEnd()}\nAUTH_JWT_SECRET=${randomBytes(48).toString("base64")}\n`);
-      console.log("Added the missing local JWT secret; existing credentials were preserved.");
-    } else console.log("Local environment already exists; preserved it.");
+    console.log("Local environment is complete; preserved it.");
   }
 }
 

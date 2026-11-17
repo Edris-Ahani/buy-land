@@ -8,7 +8,7 @@ The API uses explicit JSON credentials and bearer access tokens. Refresh session
 - Item creation requires a valid token signature, the correct issuer and audience, valid expiration, and the `catalog:write` scope.
 - Undefined routes are denied by default. Registration, login, refresh, and logout are explicitly public. Profile and logout-all require an active access JWT. HTTP Basic and fixed API passwords are not enabled.
 - Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations. Refresh tokens are hashed, rotated under a database lock, and revoked on replay. Every authenticated request checks account/session state. Registration grants no privileged scopes. See [authentication](authentication.md).
-- Public CORS is not enabled. Browser consumers require an explicit allowed-origin policy; server-to-server clients can call the API directly.
+- Cross-origin browser access requires an exact entry in `CORS_ALLOWED_ORIGINS`; an empty list denies it. Local setup includes localhost and 127.0.0.1 on ports 3000 and 5173. Only API GET/POST preflights and the declared headers are permitted; cookie credentials are disabled. CORS does not replace token or scope validation. See [browser access](api-design.md#browser-access-and-cors).
 
 ## Configuration and logging
 
@@ -20,7 +20,7 @@ The server generates request identifiers and never puts arbitrary client values 
 
 ## API documentation
 
-Scalar and its contract are disabled by default and explicitly disabled in production Compose. Development permits GET access only to the specified documentation paths; it does not expose arbitrary `/webjars/**` or classpath resources. The backend serves the official bundle. The reference uses no external proxy, contains no signing secret, and does not persist tokens in local storage. Its CSP limits scripts and network requests to the current origin. See the [API design guide](api-design.md).
+Scalar and its contract are disabled by default and explicitly disabled in the immutable-image production Compose file. Development and the Coolify sandbox enable them; the sandbox setting can be disabled with `PLATFORM_API_DOCS_ENABLED=false`. GET access is limited to the specified documentation paths; it does not expose arbitrary `/webjars/**` or classpath resources. The backend serves the official bundle. The reference uses no external proxy, contains no signing secret, and does not persist tokens in local storage. Its CSP limits scripts and network requests to the current origin. See the [API design guide](api-design.md).
 
 ## Deployment boundary
 

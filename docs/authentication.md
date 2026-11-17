@@ -71,6 +71,8 @@ If PostgreSQL cannot validate a bearer session, authentication fails closed with
 
 ## Storage and configuration
 
+For local browser clients calling the hosted sandbox, use `https://sandbox-api.ozonecowork.ir` as the API base URL and configure exact frontend origins in `CORS_ALLOWED_ORIGINS`. Send bearer headers and omit cookie credentials. The public API origin is also the hosted `AUTH_ISSUER`; local backend development retains its local issuer. See [browser access](api-design.md#browser-access-and-cors).
+
 Flyway migration `V2__create_authentication.sql` adds `app_users`, `auth_sessions`, and `auth_refresh_tokens`. Unique indexes enforce phone and token uniqueness. Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations and a versioned hash prefix. A dummy hash comparison also runs for an unknown login username.
 
 `npm run setup` generates a persistent random `AUTH_JWT_SECRET` when missing and preserves existing credentials. The secret is Base64 encoded with at least 32 decoded bytes. `AUTH_ISSUER` must be the stable API origin; `AUTH_AUDIENCE` defaults to `buy-land-api`. All replicas must share the same signing secret, issuer, audience, and database. Production Compose loads the Base64 secret from `AUTH_JWT_SECRET_FILE` through the config tree; do not put it into a browser or commit it. Restarting with the same secret preserves valid JWTs. Replacing the signing secret invalidates existing JWTs and requires an explicit operational decision.

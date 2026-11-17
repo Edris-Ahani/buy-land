@@ -1,5 +1,8 @@
 package com.acme.platform.platform.security;
 
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +16,9 @@ import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration(proxyBeanMethods = false)
 @EnableMethodSecurity
@@ -23,6 +29,7 @@ public class SecurityConfiguration {
         return http
                 // This API accepts bearer headers only; browser cookies never authenticate a request.
                 .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(authorize -> authorize
@@ -45,6 +52,28 @@ public class SecurityConfiguration {
                         .accessDeniedHandler(problems)
                         .withObjectPostProcessor(bearerFailureHandling(problems)))
                 .build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(@Value("${platform.cors.allowed-origins:}") String configuredOrigins) {
+        var origins = Arrays.stream(configuredOrigins.split(",")).map(String::trim).filter(origin -> !origin.isEmpty()).toList();
+        for (String origin : origins) {
+            URI uri = URI.create(origin);
+            if ((!"http".equals(uri.getScheme()) && !"https".equals(uri.getScheme())) || uri.getHost() == null
+                    || uri.getUserInfo() != null || !uri.getPath().isEmpty() || uri.getQuery() != null || uri.getFragment() != null) {
+                throw new IllegalArgumentException("CORS origins must be exact HTTP or HTTPS origins without paths or wildcards");
+            }
+        }
+        var configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(origins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setExposedHeaders(List.of("X-Request-ID"));
+        configuration.setAllowCredentials(false);
+        configuration.setMaxAge(3600L);
+        var source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/v1/**", configuration);
+        return source;
     }
 
     private static ObjectPostProcessor<BearerTokenAuthenticationFilter> bearerFailureHandling(SecurityProblemHandler problems) {

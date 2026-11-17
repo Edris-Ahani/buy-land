@@ -14,6 +14,14 @@ info:
     Use Authorize to paste a short-lived bearer token. Tokens must have the configured
     issuer, the configured API audience, and the scope required by the operation.
     Register or log in to obtain an access token. New users receive no catalog write scope.
+
+    Browser access from another origin requires an exact entry in CORS_ALLOWED_ORIGINS.
+    The local setup includes localhost and 127.0.0.1 on ports 3000 and 5173. Browser
+    clients send JSON and an Authorization bearer header with credentials omitted;
+    cookies do not authenticate requests. Allowed API preflights support GET, POST,
+    Authorization, Content-Type, and Accept. X-Request-ID is exposed to browser code.
+    Other origins, methods, or headers are rejected with 403 by the CORS layer before
+    the application; those rejections do not use the application problem schema.
 servers:
   - url: /
     description: The same origin as this API reference

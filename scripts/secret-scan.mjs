@@ -52,7 +52,7 @@ function git(args) {
 
 async function localSecrets() {
   const values = [];
-  for (const filename of [".env", "infra/production/.env"]) {
+  for (const filename of [".env", ".env.coolify", "infra/production/.env"]) {
     try {
       const settings = parseEnv(await readFile(path.join(root, filename), "utf8"));
       for (const [key, value] of Object.entries(settings)) {

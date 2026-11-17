@@ -1,6 +1,27 @@
 # Deployment and operations
 
-Both Compose definitions contain exactly `api` and `postgres`. Development builds the API from source and exposes loopback ports. Production uses a published immutable API image, PostgreSQL on a private internal network, file-based secrets, and a persistent database volume. Scalar is bundled in the API and is not a separate service.
+All three Compose definitions contain exactly `api` and `postgres`. Development builds the API from source and exposes loopback ports. Coolify builds from the repository root and receives runtime configuration from its dashboard. The separate immutable-image production definition uses file-based secrets. Each stack has a persistent database volume. Scalar is bundled in the API and is not a separate service.
+
+## Deploy from Git with Coolify
+
+Use the root [compose.coolify.yml](../compose.coolify.yml). The deployment log's `--project-directory` determines relative build paths. Combining a repository-root project directory with the development file's `context: ..` resolves outside the checkout and fails with a missing `/artifacts/backend` directory. The Coolify definition uses `context: .` and `backend/Containerfile` from the same root, without a local image tag or host-published ports.
+
+1. Publish the reviewed source changes yourself, connect the repository, and select the Docker Compose build strategy.
+2. Set **Base Directory** to `/` and **Docker Compose Location** to `/compose.coolify.yml`. Save and reload the definition. Keep normal managed Compose deployment; do not use raw mode or point custom build/start commands at the old development file.
+3. Complete local configuration with `npm run setup`. To prepare a private, ready-to-copy runtime file, run:
+
+   ```bat
+   cmd /c npm run setup:coolify -- --issuer https://sandbox-api.ozonecowork.ir
+   ```
+
+4. Open the ignored `.env.coolify` locally and paste it into the application's **Environment Variables > Developer view**. Save it. The export copies local credential values on first use and preserves existing export credentials on later runs; local `AUTH_ISSUER` remains unchanged. It sets the public issuer to the supplied origin, enables Scalar, and includes explicit local browser origins. Do not publish the file or paste credentials into chat.
+5. The exported `# coolify:` directives make the variables **runtime only** and literal. If editing variables individually, set Build time to **Not available during build** and Runtime to **Available in the container**. Under Build arguments, use **Managed manually in Dockerfile**; the Containerfile declares no credential `ARG` or `ENV`. Empty build-stage substitutions in this Compose file are intentional, allowing builds without production credentials. Runtime startup still requires a non-empty database password, a valid Base64 JWT key with at least 32 decoded bytes, and a non-empty issuer.
+6. Assign the `api` service the domain `https://sandbox-api.ozonecowork.ir:8080`. The suffix selects internal port 8080; public clients use `https://sandbox-api.ozonecowork.ir` without that port. Point DNS to the Coolify server. PostgreSQL has no public domain or published host port.
+7. Deploy the new commit. Check `/readyz`, `/docs`, and `/docs/openapi.yaml` on the public API origin. Keep the database volume and signing key stable across redeployments. If a database already exists on the server, retain its current username/password instead of replacing them with the local export.
+
+The Coolify stack enables Scalar by default for this sandbox; set `PLATFORM_API_DOCS_ENABLED=false` to disable it. `CORS_ALLOWED_ORIGINS` is a comma-separated list of exact browser origins. The prepared file includes `http://localhost:3000`, `http://localhost:5173`, and their `127.0.0.1` equivalents. Add the actual frontend port if different. Use the public API origin as the frontend's API base URL, send access tokens in `Authorization: Bearer ...`, and omit cookie credentials. See [browser access](api-design.md#browser-access-and-cors).
+
+The local and remote databases are independent. This workflow does not copy application data or migrate an existing volume. Secrets remain outside Git; only configuration references and safe examples are maintained. See the official [Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose) and [environment variable](https://coolify.io/docs/applications/configuration/environment-variables) guides.
 
 ## Prepare production
 
@@ -20,7 +41,7 @@ For Podman, replace `docker` with `podman` and use a working Compose provider. T
 
 ## Documentation and health
 
-`PLATFORM_API_DOCS_ENABLED` is true in local development and false in production Compose. If intentionally exposing Scalar, configure its access policy and enable it explicitly. Both `/docs` and `/docs/openapi.yaml` come from the API image and must match the deployed implementation.
+`PLATFORM_API_DOCS_ENABLED` is true in local development and the Coolify sandbox, and false in the immutable-image production Compose file. Choose its public access policy for the actual environment. Both `/docs` and `/docs/openapi.yaml` come from the API image and must match the deployed implementation.
 
 - `/livez` checks API process liveness.
 - `/readyz` includes PostgreSQL readiness.

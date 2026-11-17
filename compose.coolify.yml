@@ -1,0 +1,60 @@
+x-sandbox: &sandbox
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *sandbox
+    image: docker.io/library/postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: "buy_land"
+      POSTGRES_USER: ${DATABASE_USERNAME:-buy_land_app}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-}
+    volumes: ["postgres-data:/var/lib/postgresql"]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    networks: [data]
+
+  api:
+    <<: *sandbox
+    build:
+      context: .
+      dockerfile: backend/Containerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/buy_land
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-buy_land_app}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-}
+      AUTH_ISSUER: ${AUTH_ISSUER:-}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-buy-land-api}
+      PLATFORM_API_DOCS_ENABLED: ${PLATFORM_API_DOCS_ENABLED:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError
+    expose: ["8080"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 4s
+      start_period: 60s
+      retries: 10
+    stop_grace_period: 35s
+    mem_limit: 768m
+    networks: [data, application]
+
+volumes:
+  postgres-data:
+
+networks:
+  data:
+    internal: true
+  application:

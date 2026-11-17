@@ -46,3 +46,20 @@ Versioned pre-commit and pre-push hooks were activated in repository-local Git c
 After the test-key changes, all 75 backend unit/security/architecture/contract tests passed inside a disposable build container without a host or container socket mount. The previous 10 PostgreSQL integration results remain the earlier packaging baseline; they were not rerun for the Git tooling change. Seven security tooling tests, nine repository validator tests, eight generator tests, Redocly lint, and Git-based template synchronization/checks passed. The temporary verification image was removed, and the ignored checksum-verified scanner archive remains as the required local hook cache.
 
 These checks do not guarantee detection of every possible credential. Hooks must be enabled in every clone, and server-side secret scanning, push protection, and branch rules require configuration in the eventual remote repository. See [local protection](security.md#local-commit-and-push-protection).
+
+## Coolify build paths and local browser consumers: November 17, 2026
+
+The reported deployment combined a repository-root Compose project directory with the development file's parent-relative build context. A dedicated root `compose.coolify.yml` now builds from `.` using `backend/Containerfile`, defines only API/PostgreSQL, and publishes no host ports. Empty build-stage credential substitutions allow runtime-only dashboard secrets without injecting them as build arguments.
+
+Local setup completed missing settings while preserving existing credentials and the local issuer. Ignored `.env.coolify` was prepared for `https://sandbox-api.ozonecowork.ir`, with literal runtime-only variable directives. Exact localhost/127.0.0.1 origins on ports 3000 and 5173 support browser consumers with bearer headers and without cookie credentials. The canonical OpenAPI description, Scalar publication, and API/security/deployment guides describe the same policy.
+
+| Check | Observed result |
+| --- | --- |
+| Coolify Compose | Root paths and both service definitions validated; a real Compose image build passed with an empty environment file and no runtime credentials |
+| Backend tests | 79 unit/security/CORS/architecture/contract tests passed, including successful preflights, readable authentication failures, denied origins/ports/methods/headers, and unchanged authorization |
+| Real browser checks | Eight Scalar and CORS checks passed on desktop and mobile; CORS requests used a real temporary loopback HTTP fixture without disabling browser security |
+| Real local API | Authentication/catalog/Scalar smoke passed; the API and existing PostgreSQL were rebuilt/reused and remained healthy |
+| Tooling | Nine security/setup tests, nine repository validator tests, eight generator tests, Redocly lint, template synchronization/checks, and compatibility against HEAD passed |
+| Secret protection | All 133 maintained working-tree files passed a fully redacted Gitleaks scan and exact comparison against local/exported credential values; both private environment files remained ignored |
+
+The PostgreSQL integration suite was not repeated for these configuration/CORS changes; its earlier result remains recorded separately. Temporary test images and diagnostic files were removed. Local application data and credentials were preserved. No commit, push, remote configuration change, or Coolify deployment was performed for this change; the deployed Git revision must include the new source before using the new Compose path.

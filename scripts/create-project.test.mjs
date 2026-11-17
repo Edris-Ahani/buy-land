@@ -20,7 +20,7 @@ test("the inventory rejects private files, generated output, and unsafe relative
   for (const filename of [".env.example", "infra/production/.env.example", "backend/.mvn/wrapper/maven-wrapper.properties",
     ".github/workflows/ci.yml", ".cursor/rules/project.mdc"]) assert.equal(validateTemplateFile(filename), filename);
   for (const filename of ["../outside", "/outside", "C:/outside", "a\\b", "a/../b", "a//b", ".env", ".ENV", ".GIT/config", "nested/.ENV.local", "nested/.env.local",
-    "infra/production/.env", "custom.env", ".git/config", ".git", "secrets/key.json", "private.pem", "client.p12",
+    "infra/production/.env", ".env.coolify", "custom.env", ".git/config", ".git", "secrets/key.json", "private.pem", "client.p12",
     "node_modules/library/index.js", "backend/target/app.jar", ".tools/scratch.mjs", "tooling/vendor/SKILL.md",
     ".claude/settings.local.json", ".codex/auth.json", ".aws/credentials", "target/index.js", "database.dump",
     ".m2/settings.xml", "test-results/results.json"]) assert.throws(() => validateTemplateFile(filename));
@@ -124,6 +124,10 @@ test("creates consistent sibling projects with fresh secrets, preserved dependen
   assert.ok(productionCompose.includes('POSTGRES_DB: "blue_shop"'));
   assert.ok(productionCompose.includes("DATABASE_USERNAME:-blue_shop_app"));
   assert.ok(productionCompose.includes("jdbc:postgresql://postgres:5432/blue_shop\n"));
+  const coolifyCompose = await read("compose.coolify.yml");
+  assert.ok(coolifyCompose.includes('POSTGRES_DB: "blue_shop"'));
+  assert.ok(coolifyCompose.includes("DATABASE_USERNAME:-blue_shop_app"));
+  assert.ok(coolifyCompose.includes("jdbc:postgresql://postgres:5432/blue_shop\n"));
   assert.ok((await read("contracts/openapi.yaml")).includes("title: Blue Shop Catalog API"));
   assert.ok((await read("scripts/smoke-test.mjs")).includes("Blue Shop API Reference"));
   assert.ok((await read("backend/src/test/java/com/acme/platform/platform/web/ApiDocumentationTest.java")).includes("Blue Shop API Reference"));

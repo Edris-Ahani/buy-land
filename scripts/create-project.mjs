@@ -14,7 +14,7 @@ const excludedDirectories = new Set([
   ".aws", ".agents", ".codex", ".claude", ".gemini", ".direnv", ".playwright-cli",
 ]);
 const brandingFiles = [
-  "README.md", "infra/compose.yml", "infra/production/compose.yml", "infra/production/.env.example",
+  "README.md", "infra/compose.yml", "infra/production/compose.yml", "infra/production/.env.example", "compose.coolify.yml",
   "scripts/platform.mjs", "scripts/api-compatibility.mjs", "scripts/smoke-test.mjs", "contracts/openapi.yaml",
   "backend/src/main/resources/api-reference/index.html", "backend/src/main/resources/api-reference/config.js",
   "backend/src/test/java/com/acme/platform/platform/web/ApiDocumentationTest.java",
@@ -139,11 +139,13 @@ function customizeSources(files, previous, project) {
     [`jdbc:postgresql://postgres:5432/${previous.database}\n`, `jdbc:postgresql://postgres:5432/${project.database}\n`],
   ]) compose = replaceRequired(compose, search, replacement, "infra/compose.yml");
   files.set("infra/compose.yml", compose);
-  let productionCompose = files.get("infra/production/compose.yml");
-  productionCompose = replaceRequired(productionCompose, `POSTGRES_DB: "${previous.database}"`, `POSTGRES_DB: "${project.database}"`, "infra/production/compose.yml");
-  productionCompose = replaceRequired(productionCompose, `DATABASE_USERNAME:-${previous.databaseUser}}`, `DATABASE_USERNAME:-${project.databaseUser}}`, "infra/production/compose.yml");
-  productionCompose = replaceRequired(productionCompose, `jdbc:postgresql://postgres:5432/${previous.database}\n`, `jdbc:postgresql://postgres:5432/${project.database}\n`, "infra/production/compose.yml");
-  files.set("infra/production/compose.yml", productionCompose);
+  for (const filename of ["infra/production/compose.yml", "compose.coolify.yml"]) {
+    let deployment = files.get(filename);
+    deployment = replaceRequired(deployment, `POSTGRES_DB: "${previous.database}"`, `POSTGRES_DB: "${project.database}"`, filename);
+    deployment = replaceRequired(deployment, `DATABASE_USERNAME:-${previous.databaseUser}}`, `DATABASE_USERNAME:-${project.databaseUser}}`, filename);
+    deployment = replaceRequired(deployment, `jdbc:postgresql://postgres:5432/${previous.database}\n`, `jdbc:postgresql://postgres:5432/${project.database}\n`, filename);
+    files.set(filename, deployment);
+  }
 
   let production = files.get("infra/production/.env.example");
   production = production.replace(/^DATABASE_USERNAME=.*$/m, `DATABASE_USERNAME=${project.databaseUser}`)
