@@ -27,9 +27,11 @@ For native development, run `npm run infra:up` and launch `PlatformApplication` 
 | `npm run backend:verify` | All backend tests plus real PostgreSQL integration and migrations |
 | `npm run api:compatibility -- <base-ref>` | Contract compatibility against a Git baseline using pinned oasdiff |
 | `npm run test:api-reference` | Self-hosted Scalar, CSP, public GET requests, and browser CORS on desktop/mobile |
-| `npm run test:smoke` | Real authentication API, persistence, rotation/replay, logout, and catalog reads |
+| `npm run test:smoke` | Real authentication API, persistence, rotation/replay, logout, catalog, and category/product reads |
 
 `verify:quick` groups repository, template, scanner-input, OpenAPI, and backend unit checks. It needs installed API tooling and JDK 25. `verify:full` uses complete backend verification and additionally runs compatibility regression/baseline checks, Scalar browser tests, and smoke tests. It requires Go 1.26 or newer, a compatible container socket, a Git baseline, Playwright, and the running backend. Missing prerequisites fail verification.
+
+Store integration tests run against a fresh PostgreSQL container with synthetic seeded administrator credentials. They exercise every store operation through HTTP using real signed JWTs, validate responses against the canonical contract, and test concurrent stock contention, duplicate order requests, repeated cancellation, transaction rollback, ownership, and product-version conflicts. They do not need private local admin credentials or modify the normal local database. See [the store API guide](store.md) for manual requests and expected transitions.
 
 The browser suite tests the documentation served by the backend; it does not add another application service. Install the pinned browser with `npm exec -- playwright install chromium`, or use `PLAYWRIGHT_CHANNEL=msedge`. Tests only target local API origins and fail on external requests, CSP violations, or JavaScript errors. Reports are under root `test-results/api-reference`.
 
@@ -56,6 +58,9 @@ Scalar is served at http://localhost:8080/docs in local development and reads `/
 - Database authentication failure: changing `.env` does not change credentials inside an existing PostgreSQL volume.
 - HTTP 401: check credentials, token signature, issuer, audience, expiry, enabled account, and session revocation.
 - HTTP 403 on catalog creation: a normal user does not have `catalog:write`; do not grant it during public registration.
+- HTTP 403 on store routes: administrator and customer roles are distinct; use the appropriate login and route.
+- HTTP 409 on product update: reload the product and reconcile the stock balance using its current version.
+- HTTP 409 on order placement: check stock and active products, or whether the request ID was reused with different contents.
 - Reused refresh token: the session is revoked; the client must log in again. Serialize refresh requests and never blindly retry an uncertain exchange.
 
 Keep private environment files, signing keys, database backups, logs, build output, dependencies, and browser state out of version control. Maintain Maven Wrapper files, placeholder environment examples, migrations, canonical OpenAPI, tests, and shared instructions. Commit only on explicit request and never push automatically.

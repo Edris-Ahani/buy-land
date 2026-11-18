@@ -51,7 +51,7 @@ try {
   const specification = await request(api, "/docs/openapi.yaml");
   assert.equal(specification.status, 200);
   const source = await specification.text();
-  assert(source.includes("openapi: 3.1.0") && source.includes("/api/v1/auth/register:"));
+  assert(source.includes("openapi: 3.1.0") && source.includes("/api/v1/auth/register:") && source.includes("placeShopOrder"));
 
   const user = { fullName: "Smoke Test", phoneNumber: `09${String(randomInt(1_000_000_000)).padStart(9, "0")}`, password: randomBytes(24).toString("base64url"), type: "user" };
   const registration = await request(api, "/api/v1/auth/register", tokenRequest(user));
@@ -88,7 +88,20 @@ try {
   const listing = await request(api, "/api/v1/catalog");
   assert.equal(listing.status, 200);
   await listing.body?.cancel();
-  console.log("Infrastructure smoke test passed: Scalar, registration, persistence, phone uniqueness, login, JWT access, refresh rotation/replay, logout, public catalog");
+  for (const pathname of ["/api/v1/categories", "/api/v1/products"]) {
+    const response = await request(api, pathname);
+    assert.equal(response.status, 200, "Public store browsing must succeed without a token");
+    const page = await response.json();
+    assert(Array.isArray(page.items));
+    assert(page.size <= 50);
+    if (pathname.endsWith("products")) {
+      for (const product of page.items) {
+        assert.equal(product.active, true);
+        assert.equal(product.currency, "IRR");
+      }
+    }
+  }
+  console.log("Infrastructure smoke test passed: Scalar, registration, persistence, phone uniqueness, login, JWT access, refresh rotation/replay, logout, catalog, categories, products");
   console.log("One synthetic user was added to the local database; its sessions were revoked");
 } catch (error) {
   console.error(error instanceof assert.AssertionError ? error.message.split("\n")[0]

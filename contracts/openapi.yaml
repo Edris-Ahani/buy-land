@@ -23,7 +23,7 @@ info:
     Browser access from another origin requires an exact entry in CORS_ALLOWED_ORIGINS.
     The local setup includes localhost and 127.0.0.1 on ports 3000 and 5173. Browser
     clients send JSON and an Authorization bearer header with credentials omitted;
-    cookies do not authenticate requests. Allowed API preflights support GET, POST,
+    cookies do not authenticate requests. Allowed API preflights support GET, POST, PUT,
     Authorization, Content-Type, and Accept. X-Request-ID is exposed to browser code.
     Other origins, methods, or headers are rejected with 403 by the CORS layer before
     the application; those rejections do not use the application problem schema.
@@ -35,6 +35,14 @@ tags:
     description: Account registration, phone-based login, refresh rotation, and session revocation.
   - name: Catalog
     description: Public catalog reads and scoped catalog creation.
+  - name: Categories
+    description: Public category browsing.
+  - name: Products
+    description: Public physical product browsing in IRR.
+  - name: Orders
+    description: Customer-owned orders and cancellation.
+  - name: Administration
+    description: Administrator-only merchandise and order management.
 security:
   - bearerAuth: []
 paths:
@@ -243,6 +251,1068 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '500': { $ref: '#/components/responses/ServerError' }
+  "/api/v1/categories":
+    get:
+      tags: ["Categories"]
+      operationId: "listShopCategories"
+      summary: "List product categories"
+      description: "Public; an invalid supplied bearer token is still rejected. Categories are ordered newest first."
+      security: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopPage"
+        -
+          "$ref": "#/components/parameters/ShopSize"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopCategoryPage"
+              example:
+                items:
+                  -
+                    id: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                    name: "Office supplies"
+                    slug: "office-supplies"
+                    createdAt: "2026-11-18T10:00:00Z"
+                page: 0
+                size: 12
+                totalElements: 1
+                totalPages: 1
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/products":
+    get:
+      tags: ["Products"]
+      operationId: "listShopProducts"
+      summary: "Browse active physical products"
+      description: "Public; an invalid supplied bearer token is still rejected. Only active products appear; zero-stock products remain visible. All amounts are integer IRR."
+      security: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopCategoryFilter"
+        -
+          "$ref": "#/components/parameters/ShopSearch"
+        -
+          "$ref": "#/components/parameters/ShopPage"
+        -
+          "$ref": "#/components/parameters/ShopSize"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProductPage"
+              example:
+                items:
+                  -
+                    id: "07152668-3295-4c67-ad61-d86198219571"
+                    categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    description: "A physical paper notebook"
+                    imageUrl: "https://images.example.com/notebook.jpg"
+                    price: 250000
+                    stock: 20
+                    active: true
+                    currency: "IRR"
+                    version: 0
+                    createdAt: "2026-11-18T10:00:00Z"
+                    updatedAt: "2026-11-18T10:00:00Z"
+                page: 0
+                size: 12
+                totalElements: 1
+                totalPages: 1
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/products/{id}":
+    get:
+      tags: ["Products"]
+      operationId: "getShopProduct"
+      summary: "Read an active product"
+      description: "Public; an invalid supplied bearer token is still rejected. Inactive or missing products return 404."
+      security: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProduct"
+              example:
+                id: "07152668-3295-4c67-ad61-d86198219571"
+                categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                sku: "NOTEBOOK-01"
+                name: "Notebook"
+                description: "A physical paper notebook"
+                imageUrl: "https://images.example.com/notebook.jpg"
+                price: 250000
+                stock: 20
+                active: true
+                currency: "IRR"
+                version: 0
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/categories":
+    post:
+      tags: ["Administration"]
+      operationId: "createShopCategory"
+      summary: "Create a category"
+      description: "Requires the admin role in a valid access JWT. Slugs are unique and case-sensitive lowercase words. Use the returned id for products."
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopCategoryInput"
+            example:
+              name: "Office supplies"
+              slug: "office-supplies"
+      responses:
+        201:
+          description: "Resource created, or the existing order for the same requestId"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopCategory"
+              example:
+                id: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                name: "Office supplies"
+                slug: "office-supplies"
+                createdAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/categories/{id}":
+    put:
+      tags: ["Administration"]
+      operationId: "updateShopCategory"
+      summary: "Replace category details"
+      description: "Requires the admin role in a valid access JWT. Products keep the same category identifier; duplicate slugs return 409."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopCategoryInput"
+            example:
+              name: "Office supplies"
+              slug: "office-supplies"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopCategory"
+              example:
+                id: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                name: "Office supplies"
+                slug: "office-supplies"
+                createdAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/products":
+    get:
+      tags: ["Administration"]
+      operationId: "listAdminShopProducts"
+      summary: "List active and inactive products"
+      description: "Requires the admin role in a valid access JWT. Supports the same filters as the public product list."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopCategoryFilter"
+        -
+          "$ref": "#/components/parameters/ShopSearch"
+        -
+          "$ref": "#/components/parameters/ShopPage"
+        -
+          "$ref": "#/components/parameters/ShopSize"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProductPage"
+              example:
+                items:
+                  -
+                    id: "07152668-3295-4c67-ad61-d86198219571"
+                    categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    description: "A physical paper notebook"
+                    imageUrl: "https://images.example.com/notebook.jpg"
+                    price: 250000
+                    stock: 20
+                    active: true
+                    currency: "IRR"
+                    version: 0
+                    createdAt: "2026-11-18T10:00:00Z"
+                    updatedAt: "2026-11-18T10:00:00Z"
+                page: 0
+                size: 12
+                totalElements: 1
+                totalPages: 1
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+    post:
+      tags: ["Administration"]
+      operationId: "createShopProduct"
+      summary: "Create a physical product"
+      description: "Requires the admin role in a valid access JWT. One price and one stock balance per product. SKU is globally unique and case-sensitive. Use an existing category id. Extra request fields are ignored."
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopProductInput"
+            example:
+              categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+              sku: "NOTEBOOK-01"
+              name: "Notebook"
+              description: "A physical paper notebook"
+              imageUrl: "https://images.example.com/notebook.jpg"
+              price: 250000
+              stock: 20
+              active: true
+      responses:
+        201:
+          description: "Resource created, or the existing order for the same requestId"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProduct"
+              example:
+                id: "07152668-3295-4c67-ad61-d86198219571"
+                categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                sku: "NOTEBOOK-01"
+                name: "Notebook"
+                description: "A physical paper notebook"
+                imageUrl: "https://images.example.com/notebook.jpg"
+                price: 250000
+                stock: 20
+                active: true
+                currency: "IRR"
+                version: 0
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/products/{id}":
+    get:
+      tags: ["Administration"]
+      operationId: "getAdminShopProduct"
+      summary: "Read a product for editing"
+      description: "Requires the admin role in a valid access JWT. Includes inactive products and the current version."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProduct"
+              example:
+                id: "07152668-3295-4c67-ad61-d86198219571"
+                categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                sku: "NOTEBOOK-01"
+                name: "Notebook"
+                description: "A physical paper notebook"
+                imageUrl: "https://images.example.com/notebook.jpg"
+                price: 250000
+                stock: 20
+                active: true
+                currency: "IRR"
+                version: 0
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+    put:
+      tags: ["Administration"]
+      operationId: "updateShopProduct"
+      summary: "Replace product details and stock"
+      description: "Requires the admin role in a valid access JWT. Supply every field and its current version. Stock is the new absolute balance. Purchases and cancellations also increment version, so a stale edit returns 409 instead of overwriting stock. Set active=false to archive; existing orders remain unchanged."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopProductUpdate"
+            example:
+              categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+              sku: "NOTEBOOK-01"
+              name: "Notebook"
+              description: "A physical paper notebook"
+              imageUrl: "https://images.example.com/notebook.jpg"
+              price: 250000
+              stock: 20
+              active: true
+              version: 0
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopProduct"
+              example:
+                id: "07152668-3295-4c67-ad61-d86198219571"
+                categoryId: "b90ce17a-8bf1-42df-b032-3285c96b7261"
+                sku: "NOTEBOOK-01"
+                name: "Notebook"
+                description: "A physical paper notebook"
+                imageUrl: "https://images.example.com/notebook.jpg"
+                price: 250000
+                stock: 20
+                active: true
+                currency: "IRR"
+                version: 0
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/orders":
+    get:
+      tags: ["Orders"]
+      operationId: "listMyShopOrders"
+      summary: "List the current customer's orders"
+      description: "Requires the user role in a valid access JWT. The caller identity comes from the JWT; other user IDs in the request cannot broaden the list."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopStatus"
+        -
+          "$ref": "#/components/parameters/ShopPage"
+        -
+          "$ref": "#/components/parameters/ShopSize"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrderPage"
+              example:
+                items:
+                  -
+                    id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                    userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                    requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                    status: "pending"
+                    total: 500000
+                    currency: "IRR"
+                    carrier: null
+                    trackingCode: null
+                    createdAt: "2026-11-18T10:00:00Z"
+                    updatedAt: "2026-11-18T10:00:00Z"
+                page: 0
+                size: 12
+                totalElements: 1
+                totalPages: 1
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+    post:
+      tags: ["Orders"]
+      operationId: "placeShopOrder"
+      summary: "Place an order and deduct stock atomically"
+      description: "Requires the user role in a valid access JWT. Accepts 1-50 distinct products and quantities 1-100. Server prices determine the total; submitted prices or totals are ignored. No payment gateway or shipping fee is included; payment and shipping coordination are manual. A failed line rolls back the complete order and stock changes. The address and line prices/names/SKUs are snapshots. Repeating requestId with equivalent normalized input returns the same order (201); changed input returns 409, including after cancellation. Generate a new UUID for a new intended purchase. Replace illustrative product IDs with real API responses."
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopOrderInput"
+            example:
+              requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+              address:
+                recipientName: "Test Customer"
+                phoneNumber: "09120000001"
+                province: "Tehran"
+                city: "Tehran"
+                addressLine: "Example street, building 12"
+                postalCode: "1234567890"
+              items:
+                -
+                  productId: "07152668-3295-4c67-ad61-d86198219571"
+                  quantity: 2
+      responses:
+        201:
+          description: "Resource created, or the existing order for the same requestId"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+            Location:
+              required: true
+              description: "The customer order resource path."
+              schema:
+                type: "string"
+                format: "uri-reference"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "pending"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/orders/{id}":
+    get:
+      tags: ["Orders"]
+      operationId: "getMyShopOrder"
+      summary: "Read an owned order"
+      description: "Requires the user role in a valid access JWT. Missing and other customers' orders both return 404."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "pending"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/orders/{id}/cancel":
+    post:
+      tags: ["Orders"]
+      operationId: "cancelMyShopOrder"
+      summary: "Cancel an owned pending order"
+      description: "Requires the user role in a valid access JWT. Only pending orders can be cancelled by customers. Already-cancelled orders return unchanged. Stock is restored exactly once. Confirmed or shipped orders return 409; missing and foreign orders return 404."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "cancelled"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/orders":
+    get:
+      tags: ["Administration"]
+      operationId: "listAdminShopOrders"
+      summary: "List all customer orders"
+      description: "Requires the admin role in a valid access JWT. Filter by owner and status. Page items omit delivery addresses and order lines; open a detail for the complete order."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopUserFilter"
+        -
+          "$ref": "#/components/parameters/ShopStatus"
+        -
+          "$ref": "#/components/parameters/ShopPage"
+        -
+          "$ref": "#/components/parameters/ShopSize"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrderPage"
+              example:
+                items:
+                  -
+                    id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                    userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                    requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                    status: "pending"
+                    total: 500000
+                    currency: "IRR"
+                    carrier: null
+                    trackingCode: null
+                    createdAt: "2026-11-18T10:00:00Z"
+                    updatedAt: "2026-11-18T10:00:00Z"
+                page: 0
+                size: 12
+                totalElements: 1
+                totalPages: 1
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/orders/{id}":
+    get:
+      tags: ["Administration"]
+      operationId: "getAdminShopOrder"
+      summary: "Read any customer order"
+      description: "Requires the admin role in a valid access JWT. Includes immutable address and item snapshots."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "pending"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/orders/{id}/confirm":
+    post:
+      tags: ["Administration"]
+      operationId: "confirmShopOrder"
+      summary: "Confirm a pending order"
+      description: "Requires the admin role in a valid access JWT. Pending becomes confirmed. Repeating on confirmed is a no-op. Other states return 409. Confirmation is operational acceptance, not proof of payment."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "confirmed"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/orders/{id}/ship":
+    post:
+      tags: ["Administration"]
+      operationId: "shipShopOrder"
+      summary: "Record dispatch and tracking"
+      description: "Requires the admin role in a valid access JWT. Only confirmed orders become shipped. A retry with the same carrier/tracking is a no-op; other attempts on shipped orders return 409. Shipped orders cannot be cancelled through this API."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ShopShippingInput"
+            example:
+              carrier: "Manual carrier"
+              trackingCode: "TRACK-001"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "shipped"
+                total: 500000
+                currency: "IRR"
+                carrier: "Manual carrier"
+                trackingCode: "TRACK-001"
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        415:
+          "$ref": "#/components/responses/UnsupportedMediaType"
+        500:
+          "$ref": "#/components/responses/ServerError"
+  "/api/v1/admin/orders/{id}/cancel":
+    post:
+      tags: ["Administration"]
+      operationId: "cancelAdminShopOrder"
+      summary: "Cancel a pending or confirmed order"
+      description: "Requires the admin role in a valid access JWT. Already-cancelled orders return unchanged and do not restore stock again. Shipped orders return 409. Manual refunds, when needed, remain an operational task."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          "$ref": "#/components/parameters/ShopId"
+      responses:
+        200:
+          description: "The requested resource or page"
+          headers:
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/ShopOrder"
+              example:
+                id: "41836c80-fae1-48d4-b82c-f72e9a16a962"
+                userId: "567e5bfa-7a7d-4d81-b9da-312e4fda170c"
+                requestId: "16635c31-6e67-450f-bf69-15996d137c7f"
+                status: "cancelled"
+                total: 500000
+                currency: "IRR"
+                carrier: null
+                trackingCode: null
+                createdAt: "2026-11-18T10:00:00Z"
+                updatedAt: "2026-11-18T10:00:00Z"
+                address:
+                  recipientName: "Test Customer"
+                  phoneNumber: "+989120000001"
+                  province: "Tehran"
+                  city: "Tehran"
+                  addressLine: "Example street, building 12"
+                  postalCode: "1234567890"
+                items:
+                  -
+                    productId: "07152668-3295-4c67-ad61-d86198219571"
+                    sku: "NOTEBOOK-01"
+                    name: "Notebook"
+                    unitPrice: 250000
+                    quantity: 2
+                    lineTotal: 500000
+        400:
+          "$ref": "#/components/responses/BadRequest"
+        401:
+          "$ref": "#/components/responses/Unauthorized"
+        403:
+          "$ref": "#/components/responses/Forbidden"
+        404:
+          "$ref": "#/components/responses/ShopNotFound"
+        406:
+          "$ref": "#/components/responses/NotAcceptable"
+        409:
+          "$ref": "#/components/responses/ShopConflict"
+        500:
+          "$ref": "#/components/responses/ServerError"
 components:
   headers:
     NoStore:
@@ -260,7 +1330,508 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Paste the accessToken returned by registration, login, or refresh. Catalog writes additionally require catalog:write.
+  parameters:
+    ShopPage:
+      name: "page"
+      in: "query"
+      description: "Zero-based page; rows are ordered by createdAt DESC, id DESC."
+      schema:
+        type: "integer"
+        minimum: 0
+        maximum: 10000
+        default: 0
+    ShopSize:
+      name: "size"
+      in: "query"
+      description: "Maximum returned rows."
+      schema:
+        type: "integer"
+        minimum: 1
+        maximum: 50
+        default: 12
+    ShopId:
+      name: "id"
+      in: "path"
+      required: true
+      description: "Resource UUID."
+      schema:
+        type: "string"
+        format: "uuid"
+    ShopCategoryFilter:
+      name: "categoryId"
+      in: "query"
+      description: "Filter by category UUID; unknown categories yield an empty page."
+      schema:
+        type: "string"
+        format: "uuid"
+    ShopSearch:
+      name: "q"
+      in: "query"
+      description: "Trimmed, case-insensitive literal substring of product name or SKU; percent and underscore are literal characters."
+      schema:
+        type: "string"
+        minLength: 0
+        maxLength: 100
+        default: ""
+    ShopStatus:
+      name: "status"
+      in: "query"
+      description: "Filter by exact order status."
+      schema:
+        type: "string"
+        enum: ["pending","confirmed","shipped","cancelled"]
+    ShopUserFilter:
+      name: "userId"
+      in: "query"
+      description: "Optional account UUID filter, available only to administrators."
+      schema:
+        type: "string"
+        format: "uuid"
   schemas:
+    ShopCategoryInput:
+      type: "object"
+      required: ["name","slug"]
+      properties:
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        slug:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    ShopCategory:
+      type: "object"
+      additionalProperties: false
+      required: ["id","name","slug","createdAt"]
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        slug:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        createdAt:
+          type: "string"
+          format: "date-time"
+    ShopCategoryPage:
+      type: "object"
+      additionalProperties: false
+      required: ["items","page","size","totalElements","totalPages"]
+      properties:
+        items:
+          type: "array"
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/ShopCategory"
+        page:
+          type: "integer"
+          minimum: 0
+          maximum: 10000
+        size:
+          type: "integer"
+          minimum: 1
+          maximum: 50
+        totalElements:
+          type: "integer"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          minimum: 0
+    ShopProductInput:
+      type: "object"
+      required: ["categoryId","sku","name","description","imageUrl","price","stock","active"]
+      properties:
+        categoryId:
+          type: "string"
+          format: "uuid"
+        sku:
+          type: "string"
+          minLength: 1
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        description:
+          type: "string"
+          minLength: 0
+          maxLength: 2000
+        imageUrl:
+          type: "string"
+          minLength: 1
+          maxLength: 2048
+          format: "uri"
+          pattern: "^https://"
+          description: "An absolute HTTPS URL without embedded credentials. The backend never fetches this URL."
+        price:
+          type: "integer"
+          minimum: 1
+          maximum: 1000000000000
+          description: "Unit price in Iranian rial (IRR), as an integer."
+        stock:
+          type: "integer"
+          minimum: 0
+          maximum: 1000000000
+        active:
+          type: "boolean"
+          description: "False archives the product from public browsing and new purchases; order history remains."
+    ShopProductUpdate:
+      type: "object"
+      required: ["categoryId","sku","name","description","imageUrl","price","stock","active","version"]
+      properties:
+        categoryId:
+          type: "string"
+          format: "uuid"
+        sku:
+          type: "string"
+          minLength: 1
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        description:
+          type: "string"
+          minLength: 0
+          maxLength: 2000
+        imageUrl:
+          type: "string"
+          minLength: 1
+          maxLength: 2048
+          format: "uri"
+          pattern: "^https://"
+          description: "An absolute HTTPS URL without embedded credentials. The backend never fetches this URL."
+        price:
+          type: "integer"
+          minimum: 1
+          maximum: 1000000000000
+          description: "Unit price in Iranian rial (IRR), as an integer."
+        stock:
+          type: "integer"
+          minimum: 0
+          maximum: 1000000000
+        active:
+          type: "boolean"
+          description: "False archives the product from public browsing and new purchases; order history remains."
+        version:
+          type: "integer"
+          minimum: 0
+          description: "The version from the most recently read product; stale writes return 409. Orders and cancellation also increment it."
+    ShopProduct:
+      type: "object"
+      additionalProperties: false
+      required: ["id","categoryId","sku","name","description","imageUrl","price","stock","active","currency","version","createdAt","updatedAt"]
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        categoryId:
+          type: "string"
+          format: "uuid"
+        sku:
+          type: "string"
+          minLength: 1
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        description:
+          type: "string"
+          minLength: 0
+          maxLength: 2000
+        imageUrl:
+          type: "string"
+          minLength: 1
+          maxLength: 2048
+          format: "uri"
+          pattern: "^https://"
+          description: "An absolute HTTPS URL without embedded credentials. The backend never fetches this URL."
+        price:
+          type: "integer"
+          minimum: 1
+          maximum: 1000000000000
+          description: "Unit price in Iranian rial (IRR), as an integer."
+        stock:
+          type: "integer"
+          minimum: 0
+        active:
+          type: "boolean"
+          description: "False archives the product from public browsing and new purchases; order history remains."
+        currency:
+          type: "string"
+          const: "IRR"
+        version:
+          type: "integer"
+          minimum: 0
+        createdAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+    ShopProductPage:
+      type: "object"
+      additionalProperties: false
+      required: ["items","page","size","totalElements","totalPages"]
+      properties:
+        items:
+          type: "array"
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/ShopProduct"
+        page:
+          type: "integer"
+          minimum: 0
+          maximum: 10000
+        size:
+          type: "integer"
+          minimum: 1
+          maximum: 50
+        totalElements:
+          type: "integer"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          minimum: 0
+    ShopAddressInput:
+      type: "object"
+      required: ["recipientName","phoneNumber","province","city","addressLine","postalCode"]
+      properties:
+        recipientName:
+          type: "string"
+          minLength: 1
+          maxLength: 160
+        phoneNumber:
+          type: "string"
+          pattern: "^(09[0-9]{9}|\\+989[0-9]{9})$"
+        province:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+        city:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+        addressLine:
+          type: "string"
+          minLength: 10
+          maxLength: 500
+        postalCode:
+          type: "string"
+          pattern: "^[0-9]{10}$"
+    ShopAddress:
+      type: "object"
+      additionalProperties: false
+      required: ["recipientName","phoneNumber","province","city","addressLine","postalCode"]
+      properties:
+        recipientName:
+          type: "string"
+          minLength: 1
+          maxLength: 160
+        phoneNumber:
+          type: "string"
+          pattern: "^\\+989[0-9]{9}$"
+        province:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+        city:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+        addressLine:
+          type: "string"
+          minLength: 10
+          maxLength: 500
+        postalCode:
+          type: "string"
+          pattern: "^[0-9]{10}$"
+    ShopOrderItemInput:
+      type: "object"
+      required: ["productId","quantity"]
+      properties:
+        productId:
+          type: "string"
+          format: "uuid"
+        quantity:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+    ShopOrderInput:
+      type: "object"
+      required: ["requestId","address","items"]
+      properties:
+        requestId:
+          type: "string"
+          format: "uuid"
+          description: "Generate one UUID per intended purchase. Retry the same normalized address and item quantities with the same UUID to obtain the existing order without another stock deduction. Reusing it with different input returns 409."
+        address:
+          "$ref": "#/components/schemas/ShopAddressInput"
+        items:
+          type: "array"
+          minItems: 1
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/ShopOrderItemInput"
+          description: "Each product appears once. Submitted prices, totals, user IDs, and statuses are ignored; the server is authoritative."
+    ShopOrderLine:
+      type: "object"
+      additionalProperties: false
+      required: ["productId","sku","name","unitPrice","quantity","lineTotal"]
+      properties:
+        productId:
+          type: "string"
+          format: "uuid"
+        sku:
+          type: "string"
+          minLength: 1
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        name:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+        unitPrice:
+          type: "integer"
+          minimum: 1
+          maximum: 1000000000000
+        quantity:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+        lineTotal:
+          type: "integer"
+          minimum: 1
+          maximum: 100000000000000
+    ShopOrderSummary:
+      type: "object"
+      additionalProperties: false
+      required: ["id","userId","requestId","status","total","currency","carrier","trackingCode","createdAt","updatedAt"]
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        userId:
+          type: "string"
+          format: "uuid"
+        requestId:
+          type: "string"
+          format: "uuid"
+        status:
+          type: "string"
+          enum: ["pending","confirmed","shipped","cancelled"]
+        total:
+          type: "integer"
+          minimum: 1
+          maximum: 5000000000000000
+        currency:
+          type: "string"
+          const: "IRR"
+        carrier:
+          type: ["string","null"]
+          maxLength: 80
+        trackingCode:
+          type: ["string","null"]
+          maxLength: 120
+        createdAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+    ShopOrder:
+      type: "object"
+      additionalProperties: false
+      required: ["id","userId","requestId","status","total","currency","carrier","trackingCode","createdAt","updatedAt","address","items"]
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        userId:
+          type: "string"
+          format: "uuid"
+        requestId:
+          type: "string"
+          format: "uuid"
+        status:
+          type: "string"
+          enum: ["pending","confirmed","shipped","cancelled"]
+        total:
+          type: "integer"
+          minimum: 1
+          maximum: 5000000000000000
+        currency:
+          type: "string"
+          const: "IRR"
+        carrier:
+          type: ["string","null"]
+          maxLength: 80
+        trackingCode:
+          type: ["string","null"]
+          maxLength: 120
+        createdAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+        address:
+          "$ref": "#/components/schemas/ShopAddress"
+        items:
+          type: "array"
+          minItems: 1
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/ShopOrderLine"
+    ShopOrderPage:
+      type: "object"
+      additionalProperties: false
+      required: ["items","page","size","totalElements","totalPages"]
+      properties:
+        items:
+          type: "array"
+          maxItems: 50
+          items:
+            "$ref": "#/components/schemas/ShopOrderSummary"
+        page:
+          type: "integer"
+          minimum: 0
+          maximum: 10000
+        size:
+          type: "integer"
+          minimum: 1
+          maximum: 50
+        totalElements:
+          type: "integer"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          minimum: 0
+    ShopShippingInput:
+      type: "object"
+      required: ["carrier","trackingCode"]
+      properties:
+        carrier:
+          type: "string"
+          minLength: 1
+          maxLength: 80
+        trackingCode:
+          type: "string"
+          minLength: 1
+          maxLength: 120
+
     RegisterUser:
       type: object
       required: [fullName, phoneNumber, password]
@@ -380,6 +1951,25 @@ components:
           requestId: 06a64cb2-dcf2-4f69-a3cb-34254ef2c9a1
           invalidFields: [slug]
   responses:
+    ShopNotFound:
+      description: "Resource missing, inactive, or not owned by the caller"
+      headers:
+        X-Request-ID:
+          "$ref": "#/components/headers/RequestId"
+      content:
+        "application/problem+json":
+          schema:
+            "$ref": "#/components/schemas/Problem"
+    ShopConflict:
+      description: "Duplicate SKU/slug, insufficient stock, stale product version, changed idempotency input, or invalid order transition; no partial transaction is committed"
+      headers:
+        X-Request-ID:
+          "$ref": "#/components/headers/RequestId"
+      content:
+        "application/problem+json":
+          schema:
+            "$ref": "#/components/schemas/Problem"
+
     Registered:
       description: Account created with an access JWT and refresh token
       headers:
@@ -420,7 +2010,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Forbidden:
-      description: The token does not grant the required scope
+      description: The token does not grant the required scope or role
       headers:
         X-Request-ID: { $ref: '#/components/headers/RequestId' }
         WWW-Authenticate:

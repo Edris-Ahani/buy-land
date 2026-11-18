@@ -1,6 +1,6 @@
 # Buy Land: Spring Boot API and PostgreSQL
 
-A backend-only application with exactly two runtime services: `api` and `postgres`. The Spring Boot application owns phone/password authentication, JWT issuance, refresh sessions, catalog APIs, and its self-hosted Scalar reference. PostgreSQL stores application data. API tooling runs on the host or CI and is not an additional runtime service.
+A backend-only physical store with exactly two runtime services: `api` and `postgres`. The Spring Boot application owns phone/password authentication, JWT issuance, refresh sessions, category/product management, stock, customer orders, and its self-hosted Scalar reference. PostgreSQL stores application data. API tooling runs on the host or CI and is not an additional runtime service.
 
 | Area | Choice |
 | --- | --- |
@@ -41,7 +41,8 @@ cmd /c docker compose --env-file .env -f infra/compose.yml up -d --build
 | Scalar interactive API documentation | http://localhost:8080/docs |
 | Canonical OpenAPI document | http://localhost:8080/docs/openapi.yaml |
 | API readiness | http://localhost:8080/readyz |
-| Catalog | http://localhost:8080/api/v1/catalog |
+| Purchasable products | http://localhost:8080/api/v1/products |
+| Product categories | http://localhost:8080/api/v1/categories |
 | PostgreSQL for native development | localhost:15432 |
 
 Readiness returns `{"status":"UP"}` after startup. The API and its documentation are served directly by the backend on port 8080.
@@ -49,6 +50,8 @@ Readiness returns `{"status":"UP"}` after startup. The API and its documentation
 `npm run stack:start` starts existing images; `npm run stack:build` builds only the API image; `npm run infra:up` starts only PostgreSQL for native Java development. `npm run stack:down` stops services while preserving database volumes. Do not use volume deletion to resolve startup problems.
 
 ## API consumers
+
+The [store API guide](docs/store.md) documents administrator merchandise management, customer orders, manual confirmation/shipping, and role permissions. Prices use integer rials (`IRR`). Orders deduct stock atomically, snapshot prices, and deduplicate retries using a customer-supplied UUID. Cancellation restores stock once. Product updates require the current version to protect stock from stale edits. The older `/api/v1/catalog` reference remains compatible and separate from purchasable products.
 
 Start with the [authentication guide](docs/authentication.md). Registration accepts `fullName`, `phoneNumber`, `password`, and an optional `type` enum limited to `user` (the default); it cannot create `admin` accounts. Login uses the phone number and password. Both return an access JWT, a refresh token, and the stored user type. Refresh rotates the token, and replay revokes the session. Normal users do not receive the `catalog:write` scope.
 
@@ -74,6 +77,7 @@ Smoke and Scalar browser tests require the running backend. The smoke test creat
 
 - [Installation and first run](docs/getting-started.md)
 - [Authentication API](docs/authentication.md)
+- [Physical store API and order lifecycle](docs/store.md)
 - [API conventions and Scalar](docs/api-design.md)
 - [Architecture](docs/architecture.md)
 - [Adding a backend feature](docs/adding-a-feature.md)

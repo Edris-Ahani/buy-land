@@ -43,6 +43,14 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/docs", "/docs/", "/docs/openapi.yaml", "/docs/scalar.js", "/docs/config.js")
                         .access((authentication, context) -> new AuthorizationDecision(apiDocsEnabled))
                         .requestMatchers(HttpMethod.GET, "/api/v1/catalog").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/products", "/api/v1/products/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/admin/products", "/api/v1/admin/products/{id}",
+                                "/api/v1/admin/orders", "/api/v1/admin/orders/{id}").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/admin/categories", "/api/v1/admin/products",
+                                "/api/v1/admin/orders/{id}/confirm", "/api/v1/admin/orders/{id}/ship", "/api/v1/admin/orders/{id}/cancel").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/admin/categories/{id}", "/api/v1/admin/products/{id}").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/orders", "/api/v1/orders/{id}").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/orders", "/api/v1/orders/{id}/cancel").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
@@ -83,7 +91,7 @@ public class SecurityConfiguration {
         }
         var configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setExposedHeaders(List.of("X-Request-ID"));
         configuration.setAllowCredentials(false);

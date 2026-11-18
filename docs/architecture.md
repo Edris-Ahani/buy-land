@@ -30,6 +30,16 @@ Catalog creation uses `EntityManager.persist` for its assigned UUID and flushes 
 
 The `auth` feature owns accounts and session lifecycles. Pure domain input rules normalize names and unique mobile usernames. Application services coordinate password hashing, JWT issuance, JDBC persistence, and refresh rotation in transactions. The JDBC adapter uses parameterized queries and session row locks; signing and password hashing live in security adapters. Shared web policy remains independent of feature internals. See [authentication](authentication.md) for contracts, replay behavior, and operational constraints.
 
+## Physical store
+
+The `shop` feature owns categories, products, and orders through pure domain records, transactional application services, the `ShopStore` port, and parameterized JDBC. It is independent of the reference catalog. Web adapters use explicit DTOs; role rules distinguish customer and administrator routes. Order ownership comes from the authenticated subject and is checked before returning details.
+
+Migration V4 adds the store tables without modifying previous migrations. Product prices are integer rials. Orders store immutable name/SKU/price and delivery address snapshots. Order lists read headers without fetching lines; detail uses a separate bounded line query. Paginated reads use a count and a page query, without per-row queries.
+
+Placement inserts the unique customer/request pair and locks product rows in PostgreSQL UUID order before checking availability and changing stock. All order lines and inventory updates share one transaction, so failure rolls everything back. Concurrent retries wait on the unique constraint and return the same order. Confirmation, shipment, and cancellation lock the order first; cancellation then locks all involved products in the same database order before restoring stock once. Product edits lock the product and require the latest version, which also changes on stock movements. This prevents stale administrative edits from overwriting purchases or cancellation balances.
+
+See [the store guide](store.md) for the explicit state machine, retry behavior, validation, manual payment assumptions, and limitations. Pending orders hold stock until explicitly cancelled; no background expiry job exists.
+
 ## API contract
 
 The canonical contract lives in `contracts/openapi.yaml`. Review the implementation, request/response schemas, examples, security rules, and tests together whenever a DTO changes. API consumers can use Scalar or any HTTP client without another application service.

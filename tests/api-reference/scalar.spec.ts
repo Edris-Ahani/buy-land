@@ -52,3 +52,21 @@ test("executes a public catalog request directly through the embedded client", a
   expect(Array.isArray(body.items)).toBe(true);
   expect(body.size).toBeLessThanOrEqual(50);
 });
+
+test("executes product browsing from the store contract without a token", async ({ page }) => {
+  await page.goto("/docs#tag/products/GET/api/v1/products");
+  await page.getByRole("button", { name: /^Test Request.*get \/api\/v1\/products/i }).first().click();
+  const responsePromise = page.waitForResponse(response => {
+    return new URL(response.url()).pathname === "/api/v1/products" && response.request().method() === "GET";
+  });
+  await page.getByRole("button", { name: /Send get request to/ }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect(await response.request().headerValue("authorization")).toBeNull();
+  const body = await response.json();
+  expect(Array.isArray(body.items)).toBe(true);
+  for (const product of body.items) {
+    expect(product.active).toBe(true);
+    expect(product.currency).toBe("IRR");
+  }
+});

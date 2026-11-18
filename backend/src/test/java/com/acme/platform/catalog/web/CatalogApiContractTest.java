@@ -60,6 +60,12 @@ class CatalogApiContractTest {
     private AuthService authService;
 
     @MockitoBean
+    private com.acme.platform.shop.application.MerchandiseService merchandise;
+
+    @MockitoBean
+    private com.acme.platform.shop.application.OrderService orders;
+
+    @MockitoBean
     private JwtDecoder decoder;
 
     private JsonNode contract;

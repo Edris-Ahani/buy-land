@@ -104,3 +104,23 @@ Every startup checks administrator ID `00000000-0000-4000-8000-000000000001` aft
 | Credential protection | Maintained files were compared against actual local/exported credential values; private environment files remain ignored and no real bootstrap credentials are stored in source or migrations |
 
 The requested administrator settings were prepared only in ignored local `.env` and `.env.coolify`; existing database credentials and signing keys were preserved. Full backend verification used synthetic credentials and disposable Testcontainers PostgreSQL instances. No application database was modified, remote settings changed, or deployment performed. Existing Coolify installations must receive the new bootstrap runtime variables before their first deployment of the seed. Browser rendering and stack smoke tests were not rerun; no commit or push was performed.
+
+## Physical store backend: November 18, 2026
+
+The shop feature adds 18 operations for categories, physical products, and customer orders. Prices use integer IRR. Administrative merchandise updates require the current product version; purchases and cancellation also change that version. Orders snapshot prices and delivery information, deduplicate customer/request UUIDs, and atomically move stock. Payment and delivery coordination remain manual.
+
+| Check | Result |
+| --- | --- |
+| `npm run backend:verify` | 95 unit/security/architecture/contract tests and 29 real PostgreSQL integration tests passed; zero failures, errors, or skips |
+| Store HTTP and permissions | All 18 store operations exercised; response schemas/required headers validated against canonical OpenAPI; real signed JWTs enforce roles and owner-only details/cancellation |
+| Stock and order integrity | Concurrent last-unit purchases, identical request retries, concurrent cancellation, opposite product input order, complete rollback, stale edits, immutable snapshots, duplicate identifiers, and invalid transitions passed |
+| Migrations | Fresh startup applies V4 before readiness; the existing authentication migration upgrade and account preservation tests also pass with V4 as the latest migration |
+| Isolated built-JAR runtime | Fresh disposable PostgreSQL, startup administrator login, real product/order creation, retry deduplication, repeated cancellation, stock restoration, and local PUT preflight passed |
+| Scalar publication | The running JAR served a byte-identical copy of canonical OpenAPI, including request and success response examples for the store |
+| Browser verification | 10 Scalar/CORS tests passed with installed Edge on desktop and mobile, including real unauthenticated product browsing from the embedded client and no external requests, JavaScript errors, or CSP violations |
+| Smoke verification | Real authentication/session lifecycle plus public catalog/category/product reads passed against the isolated runtime |
+| OpenAPI | Redocly lint and compatibility against `HEAD` passed; no existing versioned operations removed or changed incompatibly |
+| Repository and generation | Policy checks for 159 maintained files, nine repository validator tests, eight generator tests, nine security/setup tests, and template inventory checks passed |
+| Credential protection | All maintained working-tree files passed the checksum-pinned redacted Gitleaks scan and exact comparisons against private local/exported credentials; private environment files remain ignored |
+
+Backend verification used a temporary checksum-verified Temurin 25.0.5 JDK and disposable PostgreSQL 18.6 containers. Browser and smoke verification used a separately launched JAR and temporary database with synthetic credentials, preserving the normal local application database and configuration. Verification processes and containers were stopped, and task-specific tools and reports were removed. No application image build, remote deployment, commit, or push was performed for this change. Rebuild/deploy the backend to publish the store contract and apply V4 automatically on the target database.

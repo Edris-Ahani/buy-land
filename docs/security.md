@@ -8,7 +8,7 @@ The API uses explicit JSON credentials and bearer access tokens. Refresh session
 - Item creation requires a valid token signature, the correct issuer and audience, valid expiration, and the `catalog:write` scope.
 - Undefined routes are denied by default. Registration, login, refresh, and logout are explicitly public. Profile and logout-all require an active access JWT. HTTP Basic and fixed API passwords are not enabled.
 - Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations. Refresh tokens are hashed, rotated under a database lock, and revoked on replay. Every authenticated request checks account/session state. Registration grants no privileged scopes. See [authentication](authentication.md).
-- Cross-origin browser access requires an exact entry in `CORS_ALLOWED_ORIGINS`; an empty list denies it. Local setup includes localhost and 127.0.0.1 on ports 3000 and 5173. Only API GET/POST preflights and the declared headers are permitted; cookie credentials are disabled. CORS does not replace token or scope validation. See [browser access](api-design.md#browser-access-and-cors).
+- Cross-origin browser access requires an exact entry in `CORS_ALLOWED_ORIGINS`; an empty list denies it. Local setup includes localhost and 127.0.0.1 on ports 3000 and 5173. Only API GET/POST/PUT preflights and the declared headers are permitted; cookie credentials are disabled. CORS does not replace token, role, or scope validation. See [browser access](api-design.md#browser-access-and-cors).
 
 ## Configuration and logging
 

@@ -6,7 +6,7 @@ The [OpenAPI document](../contracts/openapi.yaml) is the single API contract. Ma
 
 The delivery scope is backend APIs and documentation. Each backend change includes its canonical contract and consumer guide updates. The runtime has only the API and PostgreSQL.
 
-In the development stack, the interactive reference is available at http://localhost:8080/docs. The Catalog group includes request and response examples, pagination parameters, models, and error statuses. JavaScript comes from the official `com.scalar.maven:scalar-core:0.7.1` dependency and is served from the backend's origin. The browser needs no CDN or Scalar proxy. This module is independent of Spring Boot 3 auto-configuration.
+In the development stack, the interactive reference is available at http://localhost:8080/docs. Authentication, Products, Orders, and Catalog groups include request and response examples, pagination parameters, models, and error statuses. JavaScript comes from the official `com.scalar.maven:scalar-core:0.7.1` dependency and is served from the backend's origin. The browser needs no CDN or Scalar proxy. This module is independent of Spring Boot 3 auto-configuration.
 
 ## Shared operation conventions
 
@@ -23,13 +23,13 @@ In the development stack, the interactive reference is available at http://local
 | Errors | RFC 9457 `application/problem+json`, actual HTTP statuses, and sanitized details |
 | Security | Deny by default; public access must be explicit in both the contract and Spring Security |
 
-The contract exposes the [authentication lifecycle](authentication.md), public `GET /api/v1/catalog`, and `POST /api/v1/catalog` requiring `catalog:write`. New APIs belong in their feature packages and use only shared HTTP policy from `platform/web` and `platform/security`. Health and documentation paths are not business operations and are not listed in this contract.
+The contract exposes the [authentication lifecycle](authentication.md), [physical store](store.md), public `GET /api/v1/catalog`, and `POST /api/v1/catalog` requiring `catalog:write`. Store administration requires the admin role; customer order routes require the user role and enforce ownership. New APIs belong in their feature packages and use only shared HTTP policy from `platform/web` and `platform/security`. Health and documentation paths are not business operations and are not listed in this contract.
 
 ## Browser access and CORS
 
 Browser clients on a different origin must appear in `CORS_ALLOWED_ORIGINS`, a comma-separated list of exact HTTP/HTTPS origins without trailing slashes, paths, or wildcards. An empty setting denies cross-origin browser access. Local setup includes `http://localhost:3000`, `http://localhost:5173`, and the same ports on `127.0.0.1`. Configure the server's list when the local client uses another port.
 
-For the Coolify sandbox, the API base URL is `https://sandbox-api.ozonecowork.ir`. Send JSON to registration/login/refresh, use `Authorization: Bearer <accessToken>` for protected requests, and omit cookie credentials. A browser must never receive `AUTH_JWT_SECRET` or the database password. CORS permits API preflights for GET/POST, `Authorization`, `Content-Type`, and `Accept`; it exposes `X-Request-ID` and caches preflight permission for one hour. It does not grant access to a protected operation or replace token/scope checks.
+For the Coolify sandbox, the API base URL is `https://sandbox-api.ozonecowork.ir`. Send JSON to registration/login/refresh, use `Authorization: Bearer <accessToken>` for protected requests, and omit cookie credentials. A browser must never receive `AUTH_JWT_SECRET` or the database password. CORS permits API preflights for GET/POST/PUT, `Authorization`, `Content-Type`, and `Accept`; it exposes `X-Request-ID` and caches preflight permission for one hour. It does not grant access to a protected operation or replace token/role/scope checks.
 
 ```js
 const response = await fetch("https://sandbox-api.ozonecowork.ir/api/v1/auth/me", {
@@ -43,15 +43,15 @@ Disallowed origins, methods, or headers receive 403 from the CORS layer before a
 
 ## Errors
 
-OpenAPI defines errors for 400, 401, 403, 406, 409, 415, and 500. Each problem includes `type`, `status`, `title`, `detail`, `instance`, and `requestId`. The `requestId` matches the response header. Body validation failures may include `invalidFields`, containing field names only. Responses do not expose exception messages, SQL, tokens, or submitted invalid values.
+OpenAPI defines errors for 400, 401, 403, 404, 406, 409, 415, and 500 according to the operation. Each problem includes `type`, `status`, `title`, `detail`, `instance`, and `requestId`. The `requestId` matches the response header. Body validation failures may include `invalidFields`, containing field names only. Responses do not expose exception messages, SQL, tokens, or submitted invalid values.
 
 Undefined routes remain subject to the deny-by-default policy. Security may reject them with 401 or 403 before MVC handles the request.
 
 ## Test requests in Scalar
 
-Catalog reads need no token. To create an item, paste a short-lived access token into the `bearerAuth` Authorize control. Scalar builds the Bearer header. The token needs a valid signature, the correct issuer, the configured API audience, and the `catalog:write` scope. Register or log in through the authentication API to obtain an access token. Ordinary users do not receive `catalog:write`. Never enter the JWT signing secret or a refresh token into the Bearer control.
+Product, category, and reference catalog reads need no token. Paste a short-lived access token into the `bearerAuth` Authorize control for protected requests. Scalar builds the Bearer header. The token needs a valid signature, the correct issuer and configured audience, an active session, and the operation's role or scope. Register or log in through the authentication API to obtain an access token. Use an administrator login for merchandise management and an ordinary user for placing orders. Reference catalog creation separately needs `catalog:write`, which neither role receives automatically. Never enter the JWT signing secret or a refresh token into the Bearer control.
 
-Authentication is not persisted in local storage. Telemetry, Agent, and external proxying are disabled. The contract's relative server URL keeps requests on the current origin. CSP permits same-origin connections and scripts without `unsafe-inline` for scripts; inline styles required by Scalar are permitted. Interactive POST requests can create real accounts and database records or revoke real sessions.
+Authentication is not persisted in local storage. Telemetry, Agent, and external proxying are disabled. The contract's relative server URL keeps requests on the current origin. CSP permits same-origin connections and scripts without `unsafe-inline` for scripts; inline styles required by Scalar are permitted. Interactive writes can create accounts/products/orders, change stock or order states, or revoke real sessions.
 
 ## Enablement
 
@@ -72,6 +72,8 @@ cmd /c npm run backend:unit
 `api:check` runs Redocly lint against the canonical contract. The `recommended-strict` ruleset is enabled. The license requirement is disabled until a project license is selected, and the relative server `/` is intentionally allowed.
 
 Backend MVC tests compare registered business operations with the contract. `OpenApiContract` selects response schemas from the canonical document using the method, path, status, and media type, resolves local response references, and validates response bodies recursively with the OpenAPI 3.1 dialect. Format assertions are explicitly enabled, so UUID and date-time formats are checked alongside required fields, types, patterns, lengths, numeric bounds, and collection limits. Documented required response headers and their schemas are also checked. Both empty and populated catalog pages are covered, together with the documented error responses and correlation identifiers. Negative regression tests demonstrate rejection of malformed response values and undocumented statuses or media types.
+
+Store PostgreSQL integration tests additionally exercise all category/product/order operations with real JWTs, validating their responses through the same contract helper. They cover role restrictions, owner visibility, order lifecycle, rollback, idempotency, stock concurrency, snapshots, and product version conflicts. See [the store guide](store.md) for client sequences and validation rules.
 
 Catalog item, catalog page, and problem response objects declare `additionalProperties: false`. This preserves explicit response shapes in the contract, including nested items; new response fields must be documented before they are emitted. Request schemas retain their existing additional-property policy.
 
