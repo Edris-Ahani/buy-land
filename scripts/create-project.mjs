@@ -245,7 +245,7 @@ async function main() {
     }
   }
   const result = await createProject(name);
-  console.log(`\nCreated ${result.project.title}: ${result.destination}\nApplication database: ${result.project.database}\nFresh development credentials were generated and were not printed.\nNo dependencies were installed and no services were started.\n\nNext steps:\n  cd "${result.destination}"\n  npm run doctor\n  npm run stack:up\n\nDefault host ports are shared with the template; stop its stack before starting this one.`);
+  console.log(`\nCreated ${result.project.title}: ${result.destination}\nApplication database: ${result.project.database}\nFresh development credentials were generated and were not printed.\nNo dependencies were installed and no services were started.\n\nNext steps:\n  cd "${result.destination}"\n  Set BOOTSTRAP_ADMIN_FULL_NAME, BOOTSTRAP_ADMIN_PHONE_NUMBER, and BOOTSTRAP_ADMIN_PASSWORD privately in .env.\n  npm run doctor\n  npm run stack:up\n\nDefault host ports are shared with the template; stop its stack before starting this one.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -87,3 +87,20 @@ Accounts now persist a string-backed `USER`/`ADMIN` domain enum as `user`/`admin
 | Repository and generator | Repository policy checks, nine validator tests, template inventory for 136 maintained files, and eight generator tests passed |
 
 Browser rendering and the stack smoke script were not rerun for this change. Verification used isolated Testcontainers PostgreSQL instances; the application database and private configuration were not modified. No administrator creation endpoint, account promotion, remote deployment, commit, or push was performed. Rebuild and deploy the updated backend to publish this contract and apply V3 on the target database.
+
+## Startup administrator seed: November 18, 2026
+
+Every startup checks administrator ID `00000000-0000-4000-8000-000000000001` after database initialization and before application lifecycle services start. The seed creates an absent administrator using private runtime inputs and the existing PBKDF2 encoder. Existing administrators are skipped without credential, profile, or enabled-state changes. Phone conflicts and reserved IDs belonging to a normal user stop initialization without promoting another account. Concurrent first initialization safely produces one account.
+
+| Check | Result |
+| --- | --- |
+| `npm run backend:verify` | 91 unit/security/architecture/HTTP contract tests and 17 PostgreSQL integration tests passed; none skipped |
+| Startup ordering and failures | Seed completion precedes lifecycle service startup; a seed failure prevents startup and exposes no underlying exception chain |
+| Real PostgreSQL seed lifecycle | Fresh startup creates an administrator after Flyway; the initial password authenticates and the JWT carries `type: admin`; repeated checks preserve the existing account |
+| Concurrency and conflicts | Two concurrent first seeds return one `CREATED` and one `SKIPPED`; a phone collision does not promote the existing user; the reserved administrator is restored within the isolated test fixture |
+| Compose and private export | Development and Coolify forward the three private bootstrap settings; production mounts the password through its config tree; no bootstrap build arguments are added; rerunning the Coolify export preserves existing values |
+| OpenAPI and Scalar | Lint and compatibility against `HEAD` passed; the backend publication test confirms the updated canonical contract is served unchanged |
+| Repository and generation | Policy checks, nine validator tests, nine security/setup tests, inventory for 141 maintained files, and eight generator tests passed |
+| Credential protection | Maintained files were compared against actual local/exported credential values; private environment files remain ignored and no real bootstrap credentials are stored in source or migrations |
+
+The requested administrator settings were prepared only in ignored local `.env` and `.env.coolify`; existing database credentials and signing keys were preserved. Full backend verification used synthetic credentials and disposable Testcontainers PostgreSQL instances. No application database was modified, remote settings changed, or deployment performed. Existing Coolify installations must receive the new bootstrap runtime variables before their first deployment of the seed. Browser rendering and stack smoke tests were not rerun; no commit or push was performed.

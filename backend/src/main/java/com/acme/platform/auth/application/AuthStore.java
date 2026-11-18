@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public interface AuthStore {
     boolean insertUser(UserAccount user);
+    boolean insertBootstrapUserIfAbsent(UserAccount user);
     Optional<UserAccount> findUserByPhone(String phoneNumber);
     Optional<UserAccount> findUser(UUID id);
     void insertSession(AuthSession session);

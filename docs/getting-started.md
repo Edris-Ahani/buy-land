@@ -25,6 +25,11 @@ cmd /c npm --version
 cmd /c docker version
 cmd /c docker compose version
 cmd /c npm run setup
+```
+
+Before the first API startup, privately populate `BOOTSTRAP_ADMIN_FULL_NAME`, `BOOTSTRAP_ADMIN_PHONE_NUMBER`, and `BOOTSTRAP_ADMIN_PASSWORD` in ignored `.env`. The [administrator seed](authentication.md#startup-administrator-seed) creates its fixed-ID administrator after migrations and skips an existing administrator on every later startup. Setup leaves these fields empty and never embeds shared administrator credentials.
+
+```bat
 cmd /c npm run doctor
 cmd /c npm run stack:up
 ```

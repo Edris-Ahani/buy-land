@@ -46,6 +46,8 @@ The Java package namespace, API paths, scopes, and audience remain the reference
 
 The generator runs the copied project's existing setup command to create `.env` with fresh independent database credentials and a JWT signing secret. Credentials are never printed. It does not install dependencies, create a Git repository, start containers, change global tools, commit, or push. Existing source configuration and runtime data are preserved.
 
+Before its first API startup, privately set `BOOTSTRAP_ADMIN_FULL_NAME`, `BOOTSTRAP_ADMIN_PHONE_NUMBER`, and `BOOTSTRAP_ADMIN_PASSWORD` in the generated ignored `.env`. Administrator credentials are not copied from the template or generated as shared defaults. The [startup seed](authentication.md#startup-administrator-seed) creates its fixed-ID administrator only when absent.
+
 Run these commands in the new directory after preparing the host tools described in the [installation guide](getting-started.md):
 
 ```sh

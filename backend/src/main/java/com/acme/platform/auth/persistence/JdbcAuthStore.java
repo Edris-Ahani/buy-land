@@ -21,11 +21,19 @@ public class JdbcAuthStore implements AuthStore {
 
     @Override
     public boolean insertUser(UserAccount user) {
+        return insertUser(user, "ON CONFLICT (phone_number) DO NOTHING");
+    }
+
+    @Override
+    public boolean insertBootstrapUserIfAbsent(UserAccount user) {
+        return insertUser(user, "ON CONFLICT DO NOTHING");
+    }
+
+    private boolean insertUser(UserAccount user, String conflictClause) {
         return jdbc.sql("""
                 INSERT INTO app_users (id, full_name, phone_number, password_hash, user_type, enabled, created_at)
                 VALUES (:id, :name, :phone, :hash, :type, :enabled, :created)
-                ON CONFLICT (phone_number) DO NOTHING
-                """)
+                """ + conflictClause)
                 .param("id", user.id()).param("name", user.fullName()).param("phone", user.phoneNumber())
                 .param("hash", user.passwordHash()).param("type", user.type().value()).param("enabled", user.enabled())
                 .param("created", Timestamp.from(user.createdAt())).update() == 1;

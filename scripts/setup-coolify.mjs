@@ -15,7 +15,8 @@ try {
     throw new Error("Issuer must be the public HTTP or HTTPS origin without a trailing slash");
   }
   const settings = Object.fromEntries(["DATABASE_USERNAME", "DATABASE_PASSWORD", "AUTH_JWT_SECRET", "AUTH_AUDIENCE",
-    "CORS_ALLOWED_ORIGINS", "PLATFORM_API_DOCS_ENABLED"].map(key => [key, existing[key] ?? local[key] ?? ""]));
+    "CORS_ALLOWED_ORIGINS", "PLATFORM_API_DOCS_ENABLED", "BOOTSTRAP_ADMIN_FULL_NAME",
+    "BOOTSTRAP_ADMIN_PHONE_NUMBER", "BOOTSTRAP_ADMIN_PASSWORD"].map(key => [key, existing[key] ?? local[key] ?? ""]));
   settings.AUTH_ISSUER = issuer;
   if (!settings.DATABASE_PASSWORD || !settings.AUTH_JWT_SECRET || Buffer.from(settings.AUTH_JWT_SECRET, "base64").length < 32) {
     throw new Error("Local credentials are incomplete; run npm run setup first");

@@ -61,6 +61,24 @@ Registration, login, refresh, and `/me` include `user.type` (or `type` directly 
 
 This initial type change does not assign new permissions to existing routes. `/me` and `/logout-all` require an authenticated session; catalog reads remain public and catalog creation still requires `catalog:write`. Neither account type automatically receives that scope. Undefined routes remain denied. Each new restricted endpoint must declare its allowed role and document its 401/403 behavior. A role in a signed JWT reflects issuance time; login or refresh reads the current type, and revoking sessions invalidates outstanding access tokens immediately.
 
+## Startup administrator seed
+
+Every API startup checks for the administrator with reserved ID `00000000-0000-4000-8000-000000000001`. This runs after Flyway and before application lifecycle services start. If that ID already belongs to an administrator, the seed skips creation without changing its name, phone, password hash, enabled state, or sessions. Startup can skip an existing administrator even when bootstrap credentials are absent. Deleting this account causes it to be recreated on the next startup if valid private settings remain available.
+
+If the account is absent, initialization requires these private runtime settings:
+
+| Variable | Value |
+| --- | --- |
+| `BOOTSTRAP_ADMIN_FULL_NAME` | Given and family names, using the registration name rules |
+| `BOOTSTRAP_ADMIN_PHONE_NUMBER` | A unique Iranian mobile number; stored in normalized `+98` form |
+| `BOOTSTRAP_ADMIN_PASSWORD` | The initial password, using the existing password rules |
+
+Set them in ignored `.env` for development and the Coolify runtime variables for the hosted API. `npm run setup:coolify -- --issuer <public-origin>` includes these settings in ignored `.env.coolify` while preserving existing exported values. The immutable-image production Compose uses `BOOTSTRAP_ADMIN_PASSWORD_FILE` and mounts its exact contents through the secret config tree; do not append a newline to that password file. No real administrator credentials or password hashes belong in maintained source, SQL migrations, documentation, image build arguments, or logs.
+
+The application service creates an enabled `admin` account with the reserved ID and the existing salted PBKDF2 encoder. Account insertion is atomic and safe across concurrent startups. If the phone is already assigned to another ID, or the reserved ID belongs to a normal user, initialization fails and the new API does not finish startup; the seed never promotes or takes over an existing account. Missing or invalid settings also prevent first initialization. Logs report only `CREATED` or `SKIPPED`, and startup failures have sanitized messages without credential values or persistence exception chains.
+
+The seeded administrator signs in through the existing public `POST /api/v1/auth/login` using its configured phone and password. The response contains both tokens and `user.type: admin`; the access JWT carries `type: admin` and maps to `ROLE_ADMIN`. Seeding itself creates no session or tokens and does not grant additional catalog scopes. Public registration continues to accept only `type: user`. Changing seed settings does not reset an existing account; password changes require a separate authorized operation.
+
 ## Refresh and logout
 
 Refresh and logout accept:
@@ -85,7 +103,7 @@ For local browser clients calling the hosted sandbox, use `https://sandbox-api.o
 
 Flyway migration `V2__create_authentication.sql` adds `app_users`, `auth_sessions`, and `auth_refresh_tokens`. Unique indexes enforce phone and token uniqueness. Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations and a versioned hash prefix. A dummy hash comparison also runs for an unknown login username.
 
-Migration `V3__add_user_type.sql` adds the non-null `user_type` string column with a default of `user` and a database constraint permitting only `user` and `admin`. Existing accounts become `user`; account IDs, credentials, and sessions are preserved. No administrator is seeded or existing account promoted.
+Migration `V3__add_user_type.sql` adds the non-null `user_type` string column with a default of `user` and a database constraint permitting only `user` and `admin`. Existing accounts become `user`; account IDs, credentials, and sessions are preserved. The migration itself promotes no account; the separate startup seed creates its reserved administrator afterward.
 
 `npm run setup` generates a persistent random `AUTH_JWT_SECRET` when missing and preserves existing credentials. The secret is Base64 encoded with at least 32 decoded bytes. `AUTH_ISSUER` must be the stable API origin; `AUTH_AUDIENCE` defaults to `buy-land-api`. All replicas must share the same signing secret, issuer, audience, and database. Production Compose loads the Base64 secret from `AUTH_JWT_SECRET_FILE` through the config tree; do not put it into a browser or commit it. Restarting with the same secret preserves valid JWTs. Replacing the signing secret invalidates existing JWTs and requires an explicit operational decision.
 

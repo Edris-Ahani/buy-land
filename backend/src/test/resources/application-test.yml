@@ -3,6 +3,10 @@ platform:
     jwt-secret: ${random.value}${random.value}
     issuer: https://api.example.test
     audience: buy-land-api
+    bootstrap-admin:
+      full-name: Bootstrap Administrator
+      phone-number: '09129999999'
+      password: SyntheticBootstrapPassword42!
 spring:
   datasource:
     url: jdbc:postgresql://127.0.0.1:1/unused

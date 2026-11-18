@@ -9,6 +9,10 @@ platform:
     audience: ${AUTH_AUDIENCE:buy-land-api}
     access-ttl: PT15M
     refresh-ttl: P30D
+    bootstrap-admin:
+      full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:}
+      phone-number: ${BOOTSTRAP_ADMIN_PHONE_NUMBER:}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:}
 spring:
   application:
     name: buy-land-api

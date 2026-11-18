@@ -19,6 +19,11 @@ Run from this directory on Windows:
 
 ```bat
 cmd /c npm run setup
+```
+
+Before first startup, set `BOOTSTRAP_ADMIN_FULL_NAME`, `BOOTSTRAP_ADMIN_PHONE_NUMBER`, and `BOOTSTRAP_ADMIN_PASSWORD` privately in ignored `.env`. The [startup seed](docs/authentication.md#startup-administrator-seed) checks its fixed-ID administrator on each launch and creates it only when absent.
+
+```bat
 cmd /c npm run doctor
 cmd /c npm run stack:up
 ```
