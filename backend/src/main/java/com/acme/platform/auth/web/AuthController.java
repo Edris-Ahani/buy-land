@@ -1,5 +1,6 @@
 package com.acme.platform.auth.web;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.acme.platform.auth.application.AuthService;
 import com.acme.platform.auth.domain.AuthInput;
 import com.acme.platform.auth.domain.UserAccount;
@@ -19,6 +20,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 @RestController
 @RequestMapping(value = "/api/v1/auth", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -68,8 +74,39 @@ public class AuthController {
 
     public record RegisterRequest(@NotBlank @Size(max = AuthInput.MAX_NAME_LENGTH) String fullName,
             @NotBlank @Size(max = 32) String phoneNumber,
-            @NotBlank @Size(min = AuthInput.MIN_PASSWORD_LENGTH, max = AuthInput.MAX_PASSWORD_LENGTH) String password) {
+            @NotBlank @Size(min = AuthInput.MIN_PASSWORD_LENGTH, max = AuthInput.MAX_PASSWORD_LENGTH) String password,
+            RegistrationType type) {
+        public RegisterRequest {
+            if (type == null) type = RegistrationType.USER;
+        }
         @Override public String toString() { return "RegisterRequest[REDACTED]"; }
+    }
+
+    @JsonDeserialize(using = RegistrationTypeDeserializer.class)
+    public enum RegistrationType {
+        USER;
+
+        @JsonValue
+        public String value() { return "user"; }
+
+    }
+
+    public static final class RegistrationTypeDeserializer extends ValueDeserializer<RegistrationType> {
+        @Override
+        public RegistrationType deserialize(JsonParser parser, DeserializationContext context) {
+            if (parser.currentToken() == JsonToken.VALUE_STRING && "user".equals(parser.getString())) {
+                return RegistrationType.USER;
+            }
+            return context.reportInputMismatch(RegistrationType.class, "Public registration only accepts the user type");
+        }
+
+        @Override
+        public RegistrationType getAbsentValue(DeserializationContext context) { return RegistrationType.USER; }
+
+        @Override
+        public RegistrationType getNullValue(DeserializationContext context) {
+            return context.reportInputMismatch(RegistrationType.class, "Registration type must not be null");
+        }
     }
 
     public record LoginRequest(@NotBlank @Size(max = 32) String phoneNumber,
@@ -86,9 +123,9 @@ public class AuthController {
         @Override public String toString() { return "TokenResponse[REDACTED]"; }
     }
 
-    public record UserResponse(UUID id, String fullName, String phoneNumber, Instant createdAt) {
+    public record UserResponse(UUID id, String fullName, String phoneNumber, String type, Instant createdAt) {
         static UserResponse from(UserAccount user) {
-            return new UserResponse(user.id(), user.fullName(), user.phoneNumber(), user.createdAt());
+            return new UserResponse(user.id(), user.fullName(), user.phoneNumber(), user.type().value(), user.createdAt());
         }
     }
 }

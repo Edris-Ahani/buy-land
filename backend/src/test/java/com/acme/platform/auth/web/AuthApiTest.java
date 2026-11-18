@@ -3,6 +3,7 @@ package com.acme.platform.auth.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.acme.platform.auth.application.AuthService;
 import com.acme.platform.auth.domain.AuthInput;
 import com.acme.platform.auth.domain.UserAccount;
+import com.acme.platform.auth.domain.UserType;
 import com.acme.platform.platform.security.SecurityConfiguration;
 import com.acme.platform.platform.security.SecurityProblemHandler;
 import com.acme.platform.platform.web.ApiExceptionHandler;
@@ -33,7 +35,7 @@ class AuthApiTest {
     private static final String REGISTER = "/api/v1/auth/register";
     private static final String BODY = "{\"fullName\":\"Test User\",\"phoneNumber\":\"09120000001\",\"password\":\"ExamplePassword42!\"}";
     private static final UUID USER_ID = UUID.randomUUID();
-    private static final UserAccount USER = new UserAccount(USER_ID, "Test User", "+989120000001", "private-password-hash", true, Instant.EPOCH);
+    private static final UserAccount USER = new UserAccount(USER_ID, "Test User", "+989120000001", "private-password-hash", UserType.USER, true, Instant.EPOCH);
     private static final AuthService.Tokens TOKENS = new AuthService.Tokens("test-access-token", "a".repeat(43), 900, 2_592_000, USER);
     @Autowired private MockMvc mvc;
     @MockitoBean private AuthService service;
@@ -47,6 +49,25 @@ class AuthApiTest {
         assertResponse(post("/api/v1/auth/login").content(BODY), "/api/v1/auth/login", "post", 200);
         given(service.refresh(anyString())).willReturn(TOKENS);
         assertResponse(post("/api/v1/auth/refresh").content("{\"refreshToken\":\"" + "a".repeat(43) + "\"}"), "/api/v1/auth/refresh", "post", 200);
+    }
+
+    @Test
+    void publicRegistrationAcceptsOnlyTheUserEnumAndKeepsOlderRequestsCompatible() throws Exception {
+        given(service.register(anyString(), anyString(), anyString())).willReturn(TOKENS);
+        assertResponse(post(REGISTER).content(BODY), REGISTER, "post", 201);
+        assertResponse(post(REGISTER).content(withType("\"user\"")), REGISTER, "post", 201);
+    }
+
+    @Test
+    void administrativeUnknownNumericAndNullTypesAreRejectedBeforeRegistration() throws Exception {
+        for (String type : new String[] {"\"admin\"", "\"USER\"", "\"unknown\"", "\"\"", "0", "1", "null", "true", "{}", "[]"}) {
+            assertResponse(post(REGISTER).content(withType(type)), REGISTER, "post", 400);
+        }
+        verifyNoInteractions(service);
+    }
+
+    private static String withType(String value) {
+        return BODY.substring(0, BODY.length() - 1) + ",\"type\":" + value + "}";
     }
 
     @Test

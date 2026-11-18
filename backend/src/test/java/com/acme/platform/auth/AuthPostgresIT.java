@@ -1,10 +1,14 @@
 package com.acme.platform.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import com.acme.platform.support.OpenApiContract;
+import com.acme.platform.auth.domain.UserType;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -40,6 +45,26 @@ class AuthPostgresIT {
     @Autowired private MockMvc mvc;
     @Autowired private JdbcClient jdbc;
     @Autowired private JwtDecoder decoder;
+    @Autowired private DataSource dataSource;
+
+    @Test
+    void userTypeMigrationPreservesAnExistingAccountAndDefaultsItToUser() {
+        String schema = "type_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        UUID id = UUID.randomUUID();
+        try {
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).target("2").load().migrate();
+            jdbc.sql("INSERT INTO " + schema + ".app_users (id, full_name, phone_number, password_hash, created_at) "
+                    + "VALUES (:id, 'Existing User', '+989120000001', 'existing-hash', CURRENT_TIMESTAMP)")
+                    .param("id", id).update();
+            Flyway.configure().dataSource(dataSource).schemas(schema).defaultSchema(schema).load().migrate();
+            assertThat(jdbc.sql("SELECT user_type FROM " + schema + ".app_users WHERE id = :id")
+                    .param("id", id).query(String.class).single()).isEqualTo("user");
+            assertThat(jdbc.sql("SELECT password_hash FROM " + schema + ".app_users WHERE id = :id")
+                    .param("id", id).query(String.class).single()).isEqualTo("existing-hash");
+        } finally {
+            jdbc.sql("DROP SCHEMA IF EXISTS " + schema + " CASCADE").update();
+        }
+    }
 
     @Test
     void registrationPersistsOnlyHashesAndReturnsAnImmediatelyUsableJwt() throws Exception {
@@ -51,6 +76,10 @@ class AuthPostgresIT {
         assertThat(tokens.path("user").path("phoneNumber").asText()).isEqualTo("+98" + phone.substring(1));
         var jwt = decoder.decode(tokens.path("accessToken").asText());
         assertThat(jwt.getClaimAsString("scope")).isEqualTo("user");
+        assertThat(jwt.getClaimAsString("type")).isEqualTo("user");
+        assertThat(tokens.path("user").path("type").asText()).isEqualTo("user");
+        assertThat(jdbc.sql("SELECT user_type FROM app_users WHERE id = :id")
+                .param("id", UUID.fromString(jwt.getSubject())).query(String.class).single()).isEqualTo("user");
         assertThat(jwt.getClaims()).doesNotContainKeys("phoneNumber", "password", "passwordHash", "fullName");
         assertMe(tokens, 200);
         String passwordHash = jdbc.sql("SELECT password_hash FROM app_users WHERE id = :id")
@@ -75,6 +104,39 @@ class AuthPostgresIT {
         postJson("/api/v1/auth/login", "{\"phoneNumber\":\"" + phone + "\",\"password\":\"IncorrectPassword42!\"}", 401);
         postJson("/api/v1/auth/login", "{\"phoneNumber\":\"" + phone() + "\",\"password\":\"IncorrectPassword42!\"}", 401);
         assertMe(login, 200);
+    }
+
+    @Test
+    void forbiddenRegistrationTypesCreateNeitherAccountsNorSessions() throws Exception {
+        String phone = phone();
+        for (String value : List.of("\"admin\"", "0", "1", "null", "\"USER\"", "\"unknown\"")) {
+            String body = registrationBody(phone);
+            postJson("/api/v1/auth/register", body.substring(0, body.length() - 1) + ",\"type\":" + value + "}", 400);
+        }
+        assertThat(jdbc.sql("SELECT count(*) FROM app_users WHERE phone_number = :phone")
+                .param("phone", "+98" + phone.substring(1)).query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void storedTypesSurviveLoginRefreshAndProfileWithoutClientRoleAssignment() throws Exception {
+        String phone = phone();
+        JsonNode registered = register(phone);
+        UUID userId = UUID.fromString(registered.path("user").path("id").asText());
+        jdbc.sql("UPDATE app_users SET user_type = :type WHERE id = :id")
+                .param("type", UserType.ADMIN.value()).param("id", userId).update();
+        JsonNode login = postJson("/api/v1/auth/login", loginBody(phone).replace("}", ",\"type\":\"user\"}"), 200);
+        assertThat(login.path("user").path("type").asText()).isEqualTo("admin");
+        assertThat(decoder.decode(login.path("accessToken").asText()).getClaimAsString("type")).isEqualTo("admin");
+        JsonNode refreshed = postJson("/api/v1/auth/refresh", refreshBody(login), 200);
+        assertThat(refreshed.path("user").path("type").asText()).isEqualTo("admin");
+        assertThat(decoder.decode(refreshed.path("accessToken").asText()).getClaimAsString("type")).isEqualTo("admin");
+        var response = mvc.perform(get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + refreshed.path("accessToken").asText())).andReturn().getResponse();
+        assertThat(new OpenApiContract().assertResponse("get", "/api/v1/auth/me", response).path("type").asText()).isEqualTo("admin");
+        assertThatThrownBy(() -> jdbc.sql("UPDATE app_users SET user_type = 'superuser' WHERE id = :id")
+                .param("id", userId).update()).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.sql("UPDATE app_users SET user_type = NULL WHERE id = :id")
+                .param("id", userId).update()).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

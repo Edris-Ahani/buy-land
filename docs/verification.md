@@ -71,3 +71,19 @@ The Coolify Compose API listener, exposed port, and readiness check now use inte
 A disposable API container using the updated Compose settings successfully bound port 80 as UID 10001 with zero effective Linux capabilities. Its container-local unprivileged-port threshold was 80; it became healthy using the existing local PostgreSQL connection and served readiness, Scalar, and the byte-matching canonical OpenAPI document on port 80. The existing local API container was unchanged, and the disposable container and private verification configuration were removed. No host port or additional database volume was created.
 
 Compose validation, nine repository validator tests, eight generator tests, repository policy checks, and template inventory checks passed. No Java implementation or API schema changed, so the earlier backend/CORS results remain the relevant baseline. No remote deployment, commit, or push was performed for this port configuration change. A deployment log that still selects `/infra/compose.yml` must first be corrected to Base Directory `/` and Compose Location `/compose.coolify.yml`.
+
+## Account type enum: November 18, 2026
+
+Accounts now persist a string-backed `USER`/`ADMIN` domain enum as `user`/`admin`. Public registration accepts only the exact optional `type: user` value and defaults omitted types to `user`. Administrative, unknown, numeric, and explicit null inputs fail before registration. The application service always creates a normal user, independently of request binding. Token/profile responses and newly issued JWTs carry the stored type; Spring Security maps known signed types to distinct role authorities without expanding existing endpoint permissions or scopes.
+
+| Check | Result |
+| --- | --- |
+| `npm run backend:verify` with temporary JDK 25 and Docker Desktop | 84 unit/security/architecture/HTTP contract tests and 13 real PostgreSQL integration tests passed; none skipped |
+| Registration restrictions | Exact `user` and omitted types accepted; `admin`, numeric ordinals, uppercase/unknown strings, null, booleans, arrays, and objects rejected; rejected registrations create no account |
+| Persistence and migration | Fresh V3 installation and V2-to-V3 upgrade passed; an existing account retains its identifier/password hash and becomes `user`; database rejects null and unknown types |
+| Login, refresh, and profile | Stored administrator type survives token issuance/rotation/profile reads; submitted login type cannot overwrite it; existing replay/concurrency/logout tests pass |
+| Scalar publication | Backend documentation tests confirm the served OpenAPI is byte-identical to the canonical contract, including the restricted registration enum and both response types |
+| OpenAPI lint and compatibility | `npm run api:check` passed; `npm run api:compatibility -- HEAD` reported no breaking changes |
+| Repository and generator | Repository policy checks, nine validator tests, template inventory for 136 maintained files, and eight generator tests passed |
+
+Browser rendering and the stack smoke script were not rerun for this change. Verification used isolated Testcontainers PostgreSQL instances; the application database and private configuration were not modified. No administrator creation endpoint, account promotion, remote deployment, commit, or push was performed. Rebuild and deploy the updated backend to publish this contract and apply V3 on the target database.

@@ -53,7 +53,7 @@ try {
   const source = await specification.text();
   assert(source.includes("openapi: 3.1.0") && source.includes("/api/v1/auth/register:"));
 
-  const user = { fullName: "Smoke Test", phoneNumber: `09${String(randomInt(1_000_000_000)).padStart(9, "0")}`, password: randomBytes(24).toString("base64url") };
+  const user = { fullName: "Smoke Test", phoneNumber: `09${String(randomInt(1_000_000_000)).padStart(9, "0")}`, password: randomBytes(24).toString("base64url"), type: "user" };
   const registration = await request(api, "/api/v1/auth/register", tokenRequest(user));
   assert.equal(registration.status, 201, "Registration must persist a user and issue tokens");
   assert.equal(registration.headers.get("Cache-Control"), "no-store");
@@ -61,6 +61,7 @@ try {
   assert.equal(typeof original.accessToken, "string");
   assert.match(original.refreshToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(original.user.phoneNumber, `+98${user.phoneNumber.slice(1)}`);
+  assert.equal(original.user.type, "user");
   await profile(original, 200);
   const duplicate = await request(api, "/api/v1/auth/register", tokenRequest({ ...user, phoneNumber: original.user.phoneNumber }));
   assert.equal(duplicate.status, 409, "Normalized phone numbers must be unique");

@@ -45,7 +45,7 @@ Readiness returns `{"status":"UP"}` after startup. The API and its documentation
 
 ## API consumers
 
-Start with the [authentication guide](docs/authentication.md). Registration accepts `fullName`, `phoneNumber`, and `password`; login uses the phone number and password. Both return an access JWT and a refresh token. Refresh rotates the token, and replay revokes the session. Normal users do not receive the `catalog:write` scope.
+Start with the [authentication guide](docs/authentication.md). Registration accepts `fullName`, `phoneNumber`, `password`, and an optional `type` enum limited to `user` (the default); it cannot create `admin` accounts. Login uses the phone number and password. Both return an access JWT, a refresh token, and the stored user type. Refresh rotates the token, and replay revokes the session. Normal users do not receive the `catalog:write` scope.
 
 The canonical file is [contracts/openapi.yaml](contracts/openapi.yaml). The backend packages this same file unchanged and Scalar reads it directly. Maintain implementations, request and response examples, validation, authentication, error statuses, and consumer guides together. See the [API handoff checklist](docs/api-design.md#api-handoff-checklist).
 

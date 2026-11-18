@@ -2,6 +2,7 @@ package com.acme.platform.platform.security;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,9 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
@@ -47,11 +51,24 @@ public class SecurityConfiguration {
                         .anyRequest().denyAll())
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(problems).accessDeniedHandler(problems))
                 .oauth2ResourceServer(resourceServer -> resourceServer
-                        .jwt(Customizer.withDefaults())
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(userTypeAuthenticationConverter()))
                         .authenticationEntryPoint(problems)
                         .accessDeniedHandler(problems)
                         .withObjectPostProcessor(bearerFailureHandling(problems)))
                 .build();
+    }
+
+    static JwtAuthenticationConverter userTypeAuthenticationConverter() {
+        var scopes = new JwtGrantedAuthoritiesConverter();
+        var converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            var authorities = new ArrayList<>(scopes.convert(jwt));
+            String type = jwt.getClaimAsString("type");
+            if ("user".equals(type)) authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+            else if ("admin".equals(type)) authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            return authorities;
+        });
+        return converter;
     }
 
     @Bean

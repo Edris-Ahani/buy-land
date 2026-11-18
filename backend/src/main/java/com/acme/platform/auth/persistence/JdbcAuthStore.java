@@ -3,6 +3,7 @@ package com.acme.platform.auth.persistence;
 import com.acme.platform.auth.application.AuthStore;
 import com.acme.platform.auth.domain.AuthSession;
 import com.acme.platform.auth.domain.UserAccount;
+import com.acme.platform.auth.domain.UserType;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -21,12 +22,12 @@ public class JdbcAuthStore implements AuthStore {
     @Override
     public boolean insertUser(UserAccount user) {
         return jdbc.sql("""
-                INSERT INTO app_users (id, full_name, phone_number, password_hash, enabled, created_at)
-                VALUES (:id, :name, :phone, :hash, :enabled, :created)
+                INSERT INTO app_users (id, full_name, phone_number, password_hash, user_type, enabled, created_at)
+                VALUES (:id, :name, :phone, :hash, :type, :enabled, :created)
                 ON CONFLICT (phone_number) DO NOTHING
                 """)
                 .param("id", user.id()).param("name", user.fullName()).param("phone", user.phoneNumber())
-                .param("hash", user.passwordHash()).param("enabled", user.enabled())
+                .param("hash", user.passwordHash()).param("type", user.type().value()).param("enabled", user.enabled())
                 .param("created", Timestamp.from(user.createdAt())).update() == 1;
     }
 
@@ -97,6 +98,7 @@ public class JdbcAuthStore implements AuthStore {
 
     private static UserAccount user(ResultSet row) throws SQLException {
         return new UserAccount(row.getObject("id", UUID.class), row.getString("full_name"), row.getString("phone_number"),
-                row.getString("password_hash"), row.getBoolean("enabled"), row.getTimestamp("created_at").toInstant());
+                row.getString("password_hash"), UserType.fromValue(row.getString("user_type")),
+                row.getBoolean("enabled"), row.getTimestamp("created_at").toInstant());
     }
 }

@@ -1,6 +1,7 @@
 package com.acme.platform.auth.security;
 
 import com.acme.platform.auth.application.AccessTokens;
+import com.acme.platform.auth.domain.UserType;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -26,10 +27,11 @@ public class JwtAccessTokens implements AccessTokens {
     }
 
     @Override
-    public String issue(UUID userId, UUID sessionId, Instant issuedAt, Instant expiresAt) {
+    public String issue(UUID userId, UUID sessionId, UserType type, Instant issuedAt, Instant expiresAt) {
         var claims = JwtClaimsSet.builder().issuer(issuer).audience(List.of(audience)).subject(userId.toString())
                 .id(UUID.randomUUID().toString()).issuedAt(issuedAt).expiresAt(expiresAt)
-                .claim("sid", sessionId.toString()).claim("token_use", "access").claim("scope", "user").build();
+                .claim("sid", sessionId.toString()).claim("token_use", "access").claim("scope", "user")
+                .claim("type", type.value()).build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).type("JWT").build(), claims)).getTokenValue();
     }
 }

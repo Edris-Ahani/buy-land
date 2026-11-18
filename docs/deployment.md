@@ -23,7 +23,24 @@ The Coolify stack enables Scalar by default for this sandbox; set `PLATFORM_API_
 
 The Coolify definition fixes `SERVER_PORT=80`, exposes container port 80, and checks readiness on that same port. Its container-scoped `net.ipv4.ip_unprivileged_port_start=80` permits the non-root API user to bind port 80 while retaining dropped Linux capabilities. No host port is published; Coolify's existing proxy supplies HTTPS. The development and immutable-image production definitions retain port 8080. `AUTH_ISSUER` remains the public HTTPS origin without `:80`, and API routes remain under `/api/v1`; a Domain Path prefix is unnecessary.
 
-The local and remote databases are independent. This workflow does not copy application data or migrate an existing volume. Secrets remain outside Git; only configuration references and safe examples are maintained. See the official [Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose) and [environment variable](https://coolify.io/docs/applications/configuration/environment-variables) guides.
+The local and remote databases are independent. This workflow does not copy local application data to the server or replace its database volume. It does automatically migrate the server database schema when the new API starts, as described below. Secrets remain outside Git; only configuration references and safe examples are maintained. See the official [Coolify Compose](https://coolify.io/docs/applications/builds/docker-compose) and [environment variable](https://coolify.io/docs/applications/configuration/environment-variables) guides.
+
+## Automatic database migrations
+
+Every deployment that starts the updated API image runs Flyway automatically against the API's configured PostgreSQL database. No Coolify pre-deployment/post-deployment command, terminal command, or separate migration service is required. The existing Coolify Compose connects the API to `postgres:5432/buy_land` and waits for the database health check before starting it.
+
+The startup sequence is:
+
+1. Coolify builds the API image from the selected Git revision. Maven packages SQL files from `backend/src/main/resources/db/migration` into that image.
+2. PostgreSQL starts with its existing persistent volume and becomes healthy.
+3. Spring Boot starts the API with `spring.flyway.enabled=true`. Flyway validates migration history and applies pending versioned migrations in order to the configured database, before application initialization completes.
+4. Hibernate validates the resulting schema (`ddl-auto=validate`). After successful startup, the API can report ready through `/readyz`, which is also the Compose health check.
+
+Flyway records completed migrations in `flyway_schema_history`. Redeploying the same version checks the history and does not rerun completed versioned SQL files. A fresh database receives all migrations; a database already at V2 receives `V3__add_user_type.sql` on its next deployment containing V3. Normal startup failures during migration or checksum validation prevent that API instance from completing startup and becoming ready; do not disable Flyway or bypass validation to hide such a failure.
+
+For future schema changes, add a new uniquely versioned `V<number>__description.sql` file, include it in the published Git revision, and deploy the updated image. Preserve previously applied migration files and the existing database volume. The database account must retain the schema permissions needed by the migrations. Do not set `SPRING_FLYWAY_ENABLED=false`, override migration locations/targets, or override the database connection in Coolify if relying on this standard workflow. Publishing Git changes alone runs no SQL until Coolify actually builds and starts that revision.
+
+API startup logs report migration validation, applied versions, or that the schema is already current. See the official [Spring Boot database initialization](https://docs.spring.io/spring-boot/how-to/data-initialization.html) and [Flyway migration history](https://documentation.red-gate.com/fd/flyway-schema-history-table-273973417.html) references. Rollbacks and backups remain separate operational concerns; schema changes are not automatically undone when an older API image is deployed.
 
 ## Prepare production
 

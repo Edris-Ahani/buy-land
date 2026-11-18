@@ -4,6 +4,7 @@ import com.acme.platform.auth.api.SessionVerifier;
 import com.acme.platform.auth.domain.AuthInput;
 import com.acme.platform.auth.domain.AuthSession;
 import com.acme.platform.auth.domain.UserAccount;
+import com.acme.platform.auth.domain.UserType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -50,7 +51,7 @@ public class AuthService implements SessionVerifier {
         String name = AuthInput.fullName(fullName);
         String phone = AuthInput.phoneNumber(phoneNumber);
         String hash = passwords.hash(AuthInput.password(password));
-        UserAccount user = new UserAccount(UUID.randomUUID(), name, phone, hash, true, clock.instant());
+        UserAccount user = new UserAccount(UUID.randomUUID(), name, phone, hash, UserType.USER, true, clock.instant());
         if (!store.insertUser(user)) throw new PhoneAlreadyRegistered();
         return newSession(user);
     }
@@ -116,7 +117,7 @@ public class AuthService implements SessionVerifier {
         RANDOM.nextBytes(bytes);
         String refreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         store.insertRefreshToken(refreshHash(refreshToken), session.id());
-        return new Tokens(accessTokens.issue(user.id(), session.id(), now, expiresAt), refreshToken,
+        return new Tokens(accessTokens.issue(user.id(), session.id(), user.type(), now, expiresAt), refreshToken,
                 Duration.between(now, expiresAt).toSeconds(), Duration.between(now, session.expiresAt()).toSeconds(), user);
     }
 

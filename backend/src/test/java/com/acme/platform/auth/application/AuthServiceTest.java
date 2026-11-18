@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 
 import com.acme.platform.auth.domain.AuthSession;
 import com.acme.platform.auth.domain.UserAccount;
+import com.acme.platform.auth.domain.UserType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,13 +27,13 @@ class AuthServiceTest {
     private final PasswordHasher passwords = mock(PasswordHasher.class);
     private final AccessTokens access = mock(AccessTokens.class);
     private final Instant now = Instant.parse("2026-11-17T10:00:00Z");
-    private final UserAccount user = new UserAccount(UUID.randomUUID(), "Test User", "+989120000001", "encoded-password", true, now);
+    private final UserAccount user = new UserAccount(UUID.randomUUID(), "Test User", "+989120000001", "encoded-password", UserType.USER, true, now);
     private AuthService service;
 
     @BeforeEach
     void prepare() {
         given(passwords.hash(anyString())).willReturn("encoded-password");
-        given(access.issue(any(), any(), any(), any())).willReturn("signed-access-token");
+        given(access.issue(any(), any(), any(), any(), any())).willReturn("signed-access-token");
         service = new AuthService(store, passwords, access, Clock.fixed(now, ZoneOffset.UTC), Duration.ofMinutes(15), Duration.ofDays(30));
     }
 
@@ -44,6 +45,7 @@ class AuthServiceTest {
         verify(store).insertUser(userCaptor.capture());
         assertThat(userCaptor.getValue().passwordHash()).isEqualTo("encoded-password");
         assertThat(userCaptor.getValue().phoneNumber()).isEqualTo("+989120000001");
+        assertThat(userCaptor.getValue().type()).isEqualTo(UserType.USER);
         var hashCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).insertRefreshToken(hashCaptor.capture(), any());
         assertThat(hashCaptor.getValue()).matches("[0-9a-f]{64}").isNotEqualTo(tokens.refreshToken());
@@ -104,8 +106,22 @@ class AuthServiceTest {
         verify(store).revokeSession(expired.id());
         var active = new AuthSession(UUID.randomUUID(), user.id(), now.plusSeconds(60), false);
         given(store.lockSessionByRefreshToken(anyString())).willReturn(Optional.of(active));
-        given(store.findUser(user.id())).willReturn(Optional.of(new UserAccount(user.id(), user.fullName(), user.phoneNumber(), user.passwordHash(), false, now)));
+        given(store.findUser(user.id())).willReturn(Optional.of(new UserAccount(user.id(), user.fullName(), user.phoneNumber(), user.passwordHash(), user.type(), false, now)));
         assertThatThrownBy(() -> service.refresh("a".repeat(43))).isInstanceOf(AuthService.InvalidCredentials.class);
         verify(store).revokeSession(active.id());
+    }
+
+    @Test
+    void loginAndRefreshIssueTokensUsingTheStoredType() {
+        var admin = new UserAccount(user.id(), user.fullName(), user.phoneNumber(), user.passwordHash(), UserType.ADMIN, true, now);
+        given(store.findUserByPhone(anyString())).willReturn(Optional.of(admin));
+        given(passwords.matches(anyString(), anyString())).willReturn(true);
+        assertThat(service.login("09120000001", "ExamplePassword42!").user().type()).isEqualTo(UserType.ADMIN);
+        var session = new AuthSession(UUID.randomUUID(), user.id(), now.plusSeconds(600), false);
+        given(store.lockSessionByRefreshToken(anyString())).willReturn(Optional.of(session));
+        given(store.findUser(user.id())).willReturn(Optional.of(admin));
+        assertThat(service.refresh("a".repeat(43)).user().type()).isEqualTo(UserType.ADMIN);
+        verify(access, org.mockito.Mockito.times(2)).issue(org.mockito.ArgumentMatchers.eq(user.id()), any(),
+                org.mockito.ArgumentMatchers.eq(UserType.ADMIN), any(), any());
     }
 }

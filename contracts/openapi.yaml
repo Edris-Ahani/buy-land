@@ -43,13 +43,16 @@ paths:
         and a password of 8-128 characters. Local and international phone formats and
         Persian or Arabic digits normalize to the same unique +98 username.
         Registration does not verify ownership of the phone number or grant catalog write access.
+        The optional type enum accepts only the exact string user and defaults to user when
+        omitted. admin, unknown strings, numbers, and explicit null return 400; public
+        registration cannot create administrators. Responses include the stored user type.
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RegisterUser' }
-            example: { fullName: Edris Ahani, phoneNumber: '09120000001', password: ExamplePassword42! }
+            example: { fullName: Edris Ahani, phoneNumber: '09120000001', password: ExamplePassword42!, type: user }
       responses:
         '201': { $ref: '#/components/responses/Registered' }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -264,6 +267,11 @@ components:
           description: Given and family names separated by whitespace; Unicode names are supported.
         phoneNumber: { $ref: '#/components/schemas/PhoneInput' }
         password: { type: string, minLength: 8, maxLength: 128, writeOnly: true }
+        type:
+          type: string
+          enum: [user]
+          default: user
+          description: Public registration accepts only user. Omission defaults to user; admin, numbers, unknown values, and explicit null return 400.
     LoginUser:
       type: object
       required: [phoneNumber, password]
@@ -289,12 +297,17 @@ components:
     AuthUser:
       type: object
       additionalProperties: false
-      required: [id, fullName, phoneNumber, createdAt]
+      required: [id, fullName, phoneNumber, type, createdAt]
       properties:
         id: { type: string, format: uuid }
         fullName: { type: string, minLength: 3, maxLength: 160 }
         phoneNumber: { type: string, pattern: '^\+989[0-9]{9}$' }
+        type: { $ref: '#/components/schemas/UserType' }
         createdAt: { type: string, format: date-time }
+    UserType:
+      type: string
+      enum: [user, admin]
+      description: Stored account type. Public registration always creates user accounts; administrative provisioning is not exposed by this API.
     AuthTokens:
       type: object
       additionalProperties: false

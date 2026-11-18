@@ -21,13 +21,16 @@ Register:
 {
   "fullName": "Edris Ahani",
   "phoneNumber": "09120000001",
-  "password": "ExamplePassword42!"
+  "password": "ExamplePassword42!",
+  "type": "user"
 }
 ```
 
 `fullName` contains given and family names separated by whitespace, up to 160 characters. Unicode names, including Persian, are accepted. Whitespace is normalized. Passwords contain 8-128 characters and are never trimmed or normalized. All-whitespace passwords are invalid. Phone numbers must be Iranian mobile numbers in `09xxxxxxxxx` or `+989xxxxxxxxx` form; Persian and Arabic digits normalize to ASCII. The unique username stored in PostgreSQL is the international `+98` form. The API does not verify phone ownership; SMS verification is not implemented.
 
-Log in using the same `phoneNumber` and `password` fields, without `fullName`. There is no separate username field.
+Account types are the string enum `user` and `admin`, never numeric identifiers. Public registration accepts only `"type": "user"`. Omitting `type` defaults to `user` for existing clients. Explicit `null`, `admin`, other strings, uppercase spellings, numbers, objects, and arrays return 400 before account or session creation. Registration always sets the stored type to `user`; there is no public administrator creation or role assignment endpoint.
+
+Log in using the same `phoneNumber` and `password` fields, without `fullName` or `type`. There is no separate username field. Login and refresh read the account type from PostgreSQL; client-supplied fields cannot change it.
 
 Registration and login return this shape; the token placeholders below must be replaced by actual response values:
 
@@ -42,6 +45,7 @@ Registration and login return this shape; the token placeholders below must be r
     "id": "8e756936-6419-4b0e-9c44-5b5ce3fa4627",
     "fullName": "Edris Ahani",
     "phoneNumber": "+989120000001",
+    "type": "user",
     "createdAt": "2026-11-17T10:00:00Z"
   }
 }
@@ -50,6 +54,12 @@ Registration and login return this shape; the token placeholders below must be r
 Send `Authorization: Bearer <accessToken>` to `/me` and `/logout-all`. Passwords, hashes, and phone numbers are not included in JWT claims. Token responses and profile responses have `Cache-Control: no-store`. Normal users receive the `user` scope; registration does not grant `catalog:write` or administrative access. No public role or privilege assignment API exists.
 
 Call public authentication endpoints without an Authorization header, especially when refreshing an expired access token. An invalid bearer header is rejected by Spring Security even on public routes.
+
+## Account types and authorization
+
+Registration, login, refresh, and `/me` include `user.type` (or `type` directly for `/me`). Newly issued JWTs contain the signed `type` claim from the stored account. Spring Security maps `user` to `ROLE_USER` and `admin` to `ROLE_ADMIN` so protected operations can use explicit role rules, for example `hasRole("ADMIN")`. Roles are distinct; an administrator is not implicitly granted every user operation. Missing or unknown type claims grant no role. Tokens issued before this change retain their existing scope behavior until expiry; login or refresh issues a typed JWT.
+
+This initial type change does not assign new permissions to existing routes. `/me` and `/logout-all` require an authenticated session; catalog reads remain public and catalog creation still requires `catalog:write`. Neither account type automatically receives that scope. Undefined routes remain denied. Each new restricted endpoint must declare its allowed role and document its 401/403 behavior. A role in a signed JWT reflects issuance time; login or refresh reads the current type, and revoking sessions invalidates outstanding access tokens immediately.
 
 ## Refresh and logout
 
@@ -74,6 +84,8 @@ If PostgreSQL cannot validate a bearer session, authentication fails closed with
 For local browser clients calling the hosted sandbox, use `https://sandbox-api.ozonecowork.ir` as the API base URL and configure exact frontend origins in `CORS_ALLOWED_ORIGINS`. Send bearer headers and omit cookie credentials. The public API origin is also the hosted `AUTH_ISSUER`; local backend development retains its local issuer. See [browser access](api-design.md#browser-access-and-cors).
 
 Flyway migration `V2__create_authentication.sql` adds `app_users`, `auth_sessions`, and `auth_refresh_tokens`. Unique indexes enforce phone and token uniqueness. Passwords use salted PBKDF2-HMAC-SHA256 with 600,000 iterations and a versioned hash prefix. A dummy hash comparison also runs for an unknown login username.
+
+Migration `V3__add_user_type.sql` adds the non-null `user_type` string column with a default of `user` and a database constraint permitting only `user` and `admin`. Existing accounts become `user`; account IDs, credentials, and sessions are preserved. No administrator is seeded or existing account promoted.
 
 `npm run setup` generates a persistent random `AUTH_JWT_SECRET` when missing and preserves existing credentials. The secret is Base64 encoded with at least 32 decoded bytes. `AUTH_ISSUER` must be the stable API origin; `AUTH_AUDIENCE` defaults to `buy-land-api`. All replicas must share the same signing secret, issuer, audience, and database. Production Compose loads the Base64 secret from `AUTH_JWT_SECRET_FILE` through the config tree; do not put it into a browser or commit it. Restarting with the same secret preserves valid JWTs. Replacing the signing secret invalidates existing JWTs and requires an explicit operational decision.
 
