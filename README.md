@@ -49,7 +49,7 @@ Start with the [authentication guide](docs/authentication.md). Registration acce
 
 The canonical file is [contracts/openapi.yaml](contracts/openapi.yaml). The backend packages this same file unchanged and Scalar reads it directly. Maintain implementations, request and response examples, validation, authentication, error statuses, and consumer guides together. See the [API handoff checklist](docs/api-design.md#api-handoff-checklist).
 
-For Coolify, use the root [compose.coolify.yml](compose.coolify.yml) with Base Directory `/` and Compose Location `/compose.coolify.yml`. [The deployment guide](docs/deployment.md#deploy-from-git-with-coolify) explains private runtime variables, the ready-to-copy `.env.coolify` export, public domains, and browser access from localhost.
+For Coolify, use the root [compose.coolify.yml](compose.coolify.yml) with Base Directory `/` and Compose Location `/compose.coolify.yml`. Assign the `api` domain with protocol `https`, internal port `80`, and an empty path. [The deployment guide](docs/deployment.md#deploy-from-git-with-coolify) explains private runtime variables, the ready-to-copy `.env.coolify` export, public domains, and browser access from localhost.
 
 ## Verify
 

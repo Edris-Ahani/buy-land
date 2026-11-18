@@ -63,3 +63,11 @@ Local setup completed missing settings while preserving existing credentials and
 | Secret protection | All 133 maintained working-tree files passed a fully redacted Gitleaks scan and exact comparison against local/exported credential values; both private environment files remained ignored |
 
 The PostgreSQL integration suite was not repeated for these configuration/CORS changes; its earlier result remains recorded separately. Temporary test images and diagnostic files were removed. Local application data and credentials were preserved. No commit, push, remote configuration change, or Coolify deployment was performed for this change; the deployed Git revision must include the new source before using the new Compose path.
+
+## Coolify internal HTTP port 80: November 17, 2026
+
+The Coolify Compose API listener, exposed port, and readiness check now use internal HTTP port 80. Domain settings use HTTPS with port 80 and an empty path; the public issuer and API URL remain the HTTPS origin without a port suffix. Development and immutable-image deployment keep their existing port 8080 settings.
+
+A disposable API container using the updated Compose settings successfully bound port 80 as UID 10001 with zero effective Linux capabilities. Its container-local unprivileged-port threshold was 80; it became healthy using the existing local PostgreSQL connection and served readiness, Scalar, and the byte-matching canonical OpenAPI document on port 80. The existing local API container was unchanged, and the disposable container and private verification configuration were removed. No host port or additional database volume was created.
+
+Compose validation, nine repository validator tests, eight generator tests, repository policy checks, and template inventory checks passed. No Java implementation or API schema changed, so the earlier backend/CORS results remain the relevant baseline. No remote deployment, commit, or push was performed for this port configuration change. A deployment log that still selects `/infra/compose.yml` must first be corrected to Base Directory `/` and Compose Location `/compose.coolify.yml`.
